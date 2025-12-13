@@ -1,20 +1,70 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# MAG Player
 
-# Run and deploy your AI Studio app
+Aplicação web em React + Vite para carregar arquivos `.mag`/`.zip` contendo faixas de áudio e documentos Markdown, com visual de toca-fitas e leitor de documentos embutido.
 
-This contains everything you need to run your app locally.
+## Recursos
 
-View your app in AI Studio: https://ai.studio/apps/drive/14IodcobjTx44yBZ9ZLTD3M3tUickYzKJ
+- **Login local:** proteção por código de acesso definido em `types.ts`.
+- **Player de áudio:** play/pause, avançar/retroceder, seleção de faixa, progresso.
+- **Leitor Markdown:** renderização com `react-markdown` + `remark-gfm`.
+- **Suporte a `.mag`/`.zip`:** leitura de áudio (`mp3`, `wav`, `ogg`, `m4a`, `aac`, `flac`, `oga`) e `.md` diretamente do pacote via `jszip`.
 
-## Run Locally
+## Pré-requisitos
 
-**Prerequisites:**  Node.js
+- Node.js 18+ (recomendado) e npm.
 
+## Instalação e execução (local)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+npm run dev
+```
+
+Abra o endereço exibido pelo Vite (geralmente http://localhost:5173).
+
+## Código de acesso (login)
+
+- O código é definido em `types.ts` na constante `ACCESS_CODE`.
+- Padrão atual: `ORC/DDAE-11.25`.
+
+## Build de produção
+
+```bash
+npm run build
+npm run preview
+```
+
+O build gera a pasta `dist`. O `preview` serve a compilação para conferência local.
+
+## Deploy na Vercel
+
+- Configure o projeto com:
+  - Build Command: `npm run build`
+  - Output Directory: `dist`
+  - Install Command: `npm install`
+- Observações importantes:
+  - O arquivo `index.html` não deve usar import maps para CDN de libs (React, Vite, etc.). O Vite bundle já inclui as dependências locais do `package.json`.
+  - Caso tenha usado import maps anteriormente, eles foram removidos em `index.html` para evitar conflito de versões no deploy.
+
+## Estrutura do projeto
+
+- `App.tsx`: layout principal, login, player, browser de documentos.
+- `components/`: `Cassette.tsx`, `MarkdownViewer.tsx`.
+- `services/magService.ts`: leitura e processamento de `.mag`/`.zip` com `jszip`.
+- `index.tsx` e `index.html`: ponto de entrada da aplicação.
+- `types.ts`: tipos e `ACCESS_CODE`.
+- `vite.config.ts`: configuração mínima do Vite.
+
+## Dicas de troubleshooting
+
+- Se a tela de login não renderizar no deploy:
+  - Verifique se não existem import maps externos em `index.html`.
+  - Confira o console do navegador por erros de runtime (F12 → Console).
+  - Garanta que o Node da Vercel esteja em versão compatível (Node 18+).
+- Se o áudio não tocar:
+  - Verifique suporte do formato de arquivo no navegador.
+  - Cheque se o `.mag`/`.zip` contém arquivos válidos.
+
+## Licença
+
+Projeto acadêmico/demonstrativo. Ajuste conforme sua necessidade.
