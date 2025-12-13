@@ -1,0 +1,5 @@
+{
+  "name": "MAG Player",
+  "description": "A retro-futuristic digital cassette player for .mag packages with integrated Markdown rendering and local file processing.",
+  "requestFramePermissions": []
+}
