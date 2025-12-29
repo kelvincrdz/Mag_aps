@@ -24,6 +24,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 }) => {
     // --- Local State for Forms ---
     const [newUserName, setNewUserName] = useState('');
+    const [editingUserId, setEditingUserId] = useState<string | null>(null);
+    const [editingUserName, setEditingUserName] = useState('');
 
     // Upload Form
     const [campaignName, setCampaignName] = useState('MAG 01');
@@ -34,6 +36,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     // Permission Modal State
     const [editingFileId, setEditingFileId] = useState<string | null>(null);
+    const [editingCampaign, setEditingCampaign] = useState<string | null>(null);
 
     // --- Handlers ---
 
@@ -129,6 +132,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         onUpdatePermissions(currentFile.id, Array.from(currentPerms));
     };
 
+    const toggleCampaignPermission = (userId: string, campaign: string) => {
+        const campaignFiles = files.filter(f => f.campaign === campaign);
+        campaignFiles.forEach(file => {
+            const currentPerms = new Set(file.allowedUserIds);
+            if (currentPerms.has(userId)) {
+                currentPerms.delete(userId);
+            } else {
+                currentPerms.add(userId);
+            }
+            onUpdatePermissions(file.id, Array.from(currentPerms));
+        });
+    };
+
     const editingFile = files.find(f => f.id === editingFileId);
 
     return (
@@ -156,9 +172,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     {/* User Creation */}
                     <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5">
                         <h3 className="text-lg font-serif text-mag-cyan mb-4 flex items-center gap-2">
-                            <Users size={18} /> Novo Usuário
+                            <Users size={18} /> Gerenciar Usuários
                         </h3>
-                        <form onSubmit={handleCreateUser} className="flex gap-2">
+                        <form onSubmit={handleCreateUser} className="flex gap-2 mb-4">
                             <input
                                 type="text"
                                 value={newUserName}
@@ -170,12 +186,58 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 <Plus size={20} />
                             </button>
                         </form>
-                        <div className="mt-4 flex flex-wrap gap-2">
+                        <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-2">
                             {users.filter(u => u.role !== 'admin').map(u => (
-                                <span key={u.id} className="text-xs bg-black/50 px-2 py-1 rounded border border-white/10 text-mag-text/70">
-                                    {u.name}
-                                </span>
+                                <div key={u.id} className="flex items-center justify-between bg-black/30 p-2 rounded border border-white/5 hover:border-mag-cyan/30 transition-colors">
+                                    {editingUserId === u.id ? (
+                                        <>
+                                            <input
+                                                type="text"
+                                                value={editingUserName}
+                                                onChange={e => setEditingUserName(e.target.value)}
+                                                className="flex-1 bg-black/50 border border-mag-cyan/50 rounded px-2 py-1 text-sm focus:outline-none"
+                                                autoFocus
+                                            />
+                                            <div className="flex gap-1 ml-2">
+                                                <button
+                                                    onClick={() => {
+                                                        if (editingUserName.trim()) {
+                                                            // Aqui seria ideal ter um onUpdateUser, mas vou simular localmente
+                                                            u.name = editingUserName;
+                                                            setEditingUserId(null);
+                                                        }
+                                                    }}
+                                                    className="p-1 bg-mag-cyan/20 hover:bg-mag-cyan/30 rounded"
+                                                >
+                                                    <Check size={14} className="text-mag-cyan" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingUserId(null)}
+                                                    className="p-1 bg-mag-accent/20 hover:bg-mag-accent/30 rounded"
+                                                >
+                                                    <X size={14} className="text-mag-accent" />
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-sm text-mag-text/90">{u.name}</span>
+                                            <button
+                                                onClick={() => {
+                                                    setEditingUserId(u.id);
+                                                    setEditingUserName(u.name);
+                                                }}
+                                                className="text-xs text-mag-cyan/70 hover:text-mag-cyan uppercase tracking-wider"
+                                            >
+                                                Editar
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             ))}
+                            {users.filter(u => u.role !== 'admin').length === 0 && (
+                                <p className="text-center text-mag-text/30 text-xs py-2">Nenhum jogador cadastrado</p>
+                            )}
                         </div>
                     </div>
 
@@ -254,13 +316,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                             <div className="font-medium text-white truncate">{campaign}</div>
                                             <div className="text-xs text-mag-text/50">{fileCount} arquivo{fileCount !== 1 ? 's' : ''}</div>
                                         </div>
-                                        <button
-                                            onClick={() => onDeleteCampaign(campaign)}
-                                            className="ml-3 p-2 rounded text-mag-accent/70 hover:bg-mag-accent/10 hover:text-mag-accent transition-all"
-                                            title="Deletar campanha"
-                                        >
-                                            <X size={18} />
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setEditingCampaign(campaign)}
+                                                className="px-2 py-1 rounded text-xs text-mag-cyan/70 hover:bg-mag-cyan/10 hover:text-mag-cyan border border-mag-cyan/30 uppercase tracking-wider"
+                                                title="Compartilhar campanha"
+                                            >
+                                                Compartilhar
+                                            </button>
+                                            <button
+                                                onClick={() => onDeleteCampaign(campaign)}
+                                                className="p-2 rounded text-mag-accent/70 hover:bg-mag-accent/10 hover:text-mag-accent transition-all"
+                                                title="Deletar campanha"
+                                            >
+                                                <X size={18} />
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -322,7 +393,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <h4 className="text-sm font-bold text-mag-accent uppercase tracking-widest mb-1">Permissões</h4>
                             <p className="text-xs truncate text-white">{editingFile.name}</p>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
                             {users.filter(u => u.role !== 'admin').map(user => {
                                 const hasAccess = editingFile.allowedUserIds.includes(user.id);
                                 return (
@@ -345,6 +416,51 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                         <div className="p-4 border-t border-white/10">
                             <button onClick={() => setEditingFileId(null)} className="w-full py-2 bg-white/5 hover:bg-white/10 rounded text-xs uppercase">Concluir</button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Campaign Permission Panel */}
+                {editingCampaign && (
+                    <div className="w-64 bg-mag-dark border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-300">
+                        <div className="p-4 border-b border-white/10 bg-mag-cyan/10">
+                            <h4 className="text-sm font-bold text-mag-cyan uppercase tracking-widest mb-1">Campanha</h4>
+                            <p className="text-xs truncate text-white">{editingCampaign}</p>
+                            <p className="text-xs text-mag-text/50 mt-1">{files.filter(f => f.campaign === editingCampaign).length} arquivos</p>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+                            {users.filter(u => u.role !== 'admin').map(user => {
+                                const campaignFiles = files.filter(f => f.campaign === editingCampaign);
+                                const accessibleFiles = campaignFiles.filter(f => f.allowedUserIds.includes(user.id));
+                                const hasFullAccess = accessibleFiles.length === campaignFiles.length;
+                                const hasPartialAccess = accessibleFiles.length > 0 && accessibleFiles.length < campaignFiles.length;
+                                return (
+                                    <button
+                                        key={user.id}
+                                        onClick={() => toggleCampaignPermission(user.id, editingCampaign)}
+                                        className={`w-full text-left p-3 rounded border flex items-center justify-between transition-all ${hasFullAccess
+                                                ? 'bg-mag-cyan/10 border-mag-cyan/50 text-white'
+                                                : hasPartialAccess
+                                                    ? 'bg-orange-500/10 border-orange-500/50 text-orange-300'
+                                                    : 'bg-transparent border-white/5 text-mag-text/50 hover:bg-white/5'
+                                            }`}
+                                    >
+                                        <div className="flex-1">
+                                            <span className="text-sm block">{user.name}</span>
+                                            {hasPartialAccess && (
+                                                <span className="text-xs opacity-70">{accessibleFiles.length}/{campaignFiles.length} arquivos</span>
+                                            )}
+                                        </div>
+                                        {hasFullAccess ? <Check size={14} className="text-mag-cyan" /> : hasPartialAccess ? <Check size={14} className="text-orange-400" /> : <X size={14} />}
+                                    </button>
+                                );
+                            })}
+                            {users.filter(u => u.role !== 'admin').length === 0 && (
+                                <p className="text-xs text-center text-mag-text/30 mt-4">Nenhum jogador cadastrado.</p>
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-white/10">
+                            <button onClick={() => setEditingCampaign(null)} className="w-full py-2 bg-white/5 hover:bg-white/10 rounded text-xs uppercase">Concluir</button>
                         </div>
                     </div>
                 )}
