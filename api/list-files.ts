@@ -61,8 +61,14 @@ export default async function handler(req: Request): Promise<Response> {
       headers: { "content-type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: "Failed to list files" }), {
-      status: 500,
-    });
+    console.error("List files error:", err);
+    const errorMessage =
+      err instanceof Error ? err.message : "Failed to list files";
+    return new Response(
+      JSON.stringify({ error: errorMessage, details: String(err) }),
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
   }
 }
+
+export { handler as GET };

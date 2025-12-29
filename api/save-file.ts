@@ -70,8 +70,14 @@ export default async function handler(req: Request): Promise<Response> {
       headers: { "content-type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: "Failed to save index" }), {
-      status: 500,
-    });
+    console.error("Save metadata error:", err);
+    const errorMessage =
+      err instanceof Error ? err.message : "Failed to save index";
+    return new Response(
+      JSON.stringify({ error: errorMessage, details: String(err) }),
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
   }
 }
+
+export { handler as POST };

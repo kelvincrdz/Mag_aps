@@ -89,8 +89,14 @@ export default async function handler(req: Request): Promise<Response> {
       headers: { "content-type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 400,
-    });
+    console.error("Client upload error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Upload failed";
+    return new Response(
+      JSON.stringify({ error: errorMessage, details: String(error) }),
+      { status: 400, headers: { "content-type": "application/json" } }
+    );
   }
 }
+
+export { handler as POST };

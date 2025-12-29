@@ -52,8 +52,13 @@ export default async function handler(req: Request): Promise<Response> {
       }
     );
   } catch (err) {
-    return new Response(JSON.stringify({ error: "Upload failed" }), {
-      status: 500,
-    });
+    console.error("Upload error:", err);
+    const errorMessage = err instanceof Error ? err.message : "Upload failed";
+    return new Response(
+      JSON.stringify({ error: errorMessage, details: String(err) }),
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
   }
 }
+
+export { handler as POST };

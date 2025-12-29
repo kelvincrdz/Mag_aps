@@ -92,15 +92,45 @@ export const uploadViaApi = async (
   fileOrBlob: File | Blob,
   contentType: string
 ): Promise<{ url: string }> => {
-  const fd = new FormData();
-  fd.set("campaign", campaign);
-  fd.set("folder", folder);
-  fd.set("filename", filename);
-  fd.set("contentType", contentType);
-  fd.set("file", fileOrBlob);
-  const resp = await fetch("/api/upload", { method: "POST", body: fd });
-  if (!resp.ok) throw new Error("Falha ao enviar arquivo");
-  return resp.json();
+  try {
+    const fd = new FormData();
+    fd.set("campaign", campaign);
+    fd.set("folder", folder);
+    fd.set("filename", filename);
+    fd.set("contentType", contentType);
+    fd.set("file", fileOrBlob);
+
+    console.log("Uploading to /api/upload:", {
+      campaign,
+      folder,
+      filename,
+      contentType,
+      size: fileOrBlob.size,
+    });
+
+    const resp = await fetch("/api/upload", { method: "POST", body: fd });
+
+    if (!resp.ok) {
+      const errorData = await resp
+        .json()
+        .catch(() => ({ error: "Unknown error" }));
+      console.error("Upload failed:", resp.status, errorData);
+      throw new Error(
+        errorData.error || `Upload failed with status ${resp.status}`
+      );
+    }
+
+    const result = await resp.json();
+    console.log("Upload successful:", result);
+    return result;
+  } catch (error) {
+    console.error("Upload error in service:", error);
+    throw new Error(
+      `Falha ao enviar arquivo: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 };
 
 export const uploadClientDirect = async (
