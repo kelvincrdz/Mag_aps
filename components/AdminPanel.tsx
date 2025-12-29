@@ -158,6 +158,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         });
     };
 
+    const shareWithAllUsers = (campaign: string) => {
+        const campaignFiles = files.filter(f => f.campaign === campaign);
+        const allPlayerIds = users.filter(u => u.role !== 'admin').map(u => u.id);
+
+        campaignFiles.forEach(file => {
+            onUpdatePermissions(file.id, allPlayerIds);
+        });
+    };
+
     const editingFile = files.find(f => f.id === editingFileId);
 
     // Get unique campaigns and folders for filter
@@ -341,25 +350,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             {Array.from(new Set(files.map(f => f.campaign))).map(campaign => {
                                 const fileCount = files.filter(f => f.campaign === campaign).length;
                                 return (
-                                    <div key={campaign} className="flex items-center justify-between bg-black/30 p-3 rounded border border-white/5 hover:border-mag-accent/30 transition-colors">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="font-medium text-white truncate">{campaign}</div>
-                                            <div className="text-xs text-mag-text/50">{fileCount} arquivo{fileCount !== 1 ? 's' : ''}</div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => setEditingCampaign(campaign)}
-                                                className="px-2 py-1 rounded text-xs text-mag-cyan/70 hover:bg-mag-cyan/10 hover:text-mag-cyan border border-mag-cyan/30 uppercase tracking-wider"
-                                                title="Compartilhar campanha"
-                                            >
-                                                Compartilhar
-                                            </button>
+                                    <div key={campaign} className="bg-black/30 p-3 rounded border border-white/5 hover:border-mag-accent/30 transition-colors">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-white truncate">{campaign}</div>
+                                                <div className="text-xs text-mag-text/50">{fileCount} arquivo{fileCount !== 1 ? 's' : ''}</div>
+                                            </div>
                                             <button
                                                 onClick={() => onDeleteCampaign(campaign)}
                                                 className="p-2 rounded text-mag-accent/70 hover:bg-mag-accent/10 hover:text-mag-accent transition-all"
                                                 title="Deletar campanha"
                                             >
                                                 <X size={18} />
+                                            </button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => shareWithAllUsers(campaign)}
+                                                className="flex-1 px-2 py-1.5 rounded text-xs text-white bg-mag-cyan/20 hover:bg-mag-cyan/30 border border-mag-cyan/40 uppercase tracking-wider"
+                                                title="Compartilhar com todos os jogadores"
+                                            >
+                                                Todos
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingCampaign(campaign)}
+                                                className="flex-1 px-2 py-1.5 rounded text-xs text-mag-cyan/70 hover:bg-mag-cyan/10 hover:text-mag-cyan border border-mag-cyan/30 uppercase tracking-wider"
+                                                title="Compartilhar campanha individualmente"
+                                            >
+                                                Individual
                                             </button>
                                         </div>
                                     </div>
