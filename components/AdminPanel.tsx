@@ -59,9 +59,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         // Determine Type
         let type: FileType = 'document';
         if (uploadedFile.name.endsWith('.mp3')) type = 'audio';
+        else if (uploadedFile.name.endsWith('.mp4')) type = 'video';
         else if (uploadedFile.name.endsWith('.md')) type = 'document';
         else {
-            alert('Apenas arquivos .md ou .mp3 são permitidos.');
+            alert('Apenas arquivos .md, .mp3 ou .mp4 são permitidos.');
             setIsProcessing(false);
             setUploadProgress(0);
             setUploadStatus('');
@@ -75,7 +76,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             let content = '';
             let blob: Blob | undefined = undefined;
 
-            if (type === 'audio') {
+            if (type === 'audio' || type === 'video') {
                 blob = uploadedFile;
                 content = URL.createObjectURL(blob);
             } else {
@@ -276,11 +277,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                             <>
                                                 <Upload className="w-8 h-8 mb-2 text-mag-text/50" />
                                                 <p className="text-sm text-mag-text/70"><span className="font-semibold">Clique para upload</span></p>
-                                                <p className="text-xs text-mag-text/50">.MD ou .MP3</p>
+                                                <p className="text-xs text-mag-text/50">.MD, .MP3 ou .MP4</p>
                                             </>
                                         )}
                                     </div>
-                                    <input type="file" className="hidden" accept=".md,.mp3" onChange={handleFileUpload} disabled={isProcessing} />
+                                    <input type="file" className="hidden" accept=".md,.mp3,.mp4" onChange={handleFileUpload} disabled={isProcessing} />
                                 </label>
 
                                 {/* Progress Bar */}
@@ -355,8 +356,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         {files.map(file => (
                             <div key={file.id} className="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-mag-light/30 transition-colors">
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className={`p-2 rounded ${file.type === 'audio' ? 'bg-orange-900/20 text-orange-400' : 'bg-blue-900/20 text-blue-400'}`}>
-                                        {file.type === 'audio' ? <FileAudio size={20} /> : <FileText size={20} />}
+                                    <div className={`p-2 rounded ${file.type === 'audio' ? 'bg-orange-900/20 text-orange-400' :
+                                            file.type === 'video' ? 'bg-purple-900/20 text-purple-400' :
+                                                'bg-blue-900/20 text-blue-400'
+                                        }`}>
+                                        {file.type === 'audio' ? <FileAudio size={20} /> :
+                                            file.type === 'video' ? <FileAudio size={20} /> :
+                                                <FileText size={20} />}
                                     </div>
                                     <div>
                                         <div className="font-medium truncate max-w-[200px]">{file.name}</div>
@@ -439,10 +445,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         key={user.id}
                                         onClick={() => toggleCampaignPermission(user.id, editingCampaign)}
                                         className={`w-full text-left p-3 rounded border flex items-center justify-between transition-all ${hasFullAccess
-                                                ? 'bg-mag-cyan/10 border-mag-cyan/50 text-white'
-                                                : hasPartialAccess
-                                                    ? 'bg-orange-500/10 border-orange-500/50 text-orange-300'
-                                                    : 'bg-transparent border-white/5 text-mag-text/50 hover:bg-white/5'
+                                            ? 'bg-mag-cyan/10 border-mag-cyan/50 text-white'
+                                            : hasPartialAccess
+                                                ? 'bg-orange-500/10 border-orange-500/50 text-orange-300'
+                                                : 'bg-transparent border-white/5 text-mag-text/50 hover:bg-white/5'
                                             }`}
                                     >
                                         <div className="flex-1">

@@ -1,11 +1,9 @@
-
-
-export type FileType = 'audio' | 'document';
+export type FileType = "audio" | "document" | "video";
 
 export interface User {
   id: string;
   name: string;
-  role: 'admin' | 'player';
+  role: "admin" | "player";
 }
 
 export interface GameFile {
@@ -20,12 +18,17 @@ export interface GameFile {
 }
 
 export interface AudioTrack extends GameFile {
-  type: 'audio';
+  type: "audio";
   url: string; // Alias for content
 }
 
+export interface VideoFile extends GameFile {
+  type: "video";
+  url: string;
+}
+
 export interface DocumentFile extends GameFile {
-  type: 'document';
+  type: "document";
 }
 
 export interface MagPackage {
@@ -38,12 +41,12 @@ export enum AppState {
   CAMPAIGN_SELECT,
   PLAYER,
   BROWSER,
-  ADMIN
+  ADMIN,
 }
 
 // Default initial users
 export const INITIAL_USERS: User[] = [
-  { id: 'admin-01', name: 'Mestre (Admin)', role: 'admin' },
-  { id: 'player-01', name: 'Jogador 1', role: 'player' },
-  { id: 'player-02', name: 'Jogador 2', role: 'player' }
+  { id: "admin-01", name: "Mestre (Admin)", role: "admin" },
+  { id: "player-01", name: "Jogador 1", role: "player" },
+  { id: "player-02", name: "Jogador 2", role: "player" },
 ];

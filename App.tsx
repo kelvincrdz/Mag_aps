@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Folder,
-  Settings
+  Settings,
+  Video
 } from 'lucide-react';
 import { Cassette } from './components/Cassette';
 import { MarkdownViewer } from './components/MarkdownViewer';
@@ -45,6 +46,7 @@ function App() {
 
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // --- Computed Data ---
 
@@ -71,7 +73,7 @@ function App() {
   }, {} as Record<string, GameFile[]>);
 
   // Sorted list of tracks for the player (from current campaign)
-  const tracks = campaignFiles.filter(f => f.type === 'audio').sort((a, b) => a.name.localeCompare(b.name));
+  const tracks = campaignFiles.filter(f => f.type === 'audio' || f.type === 'video').sort((a, b) => a.name.localeCompare(b.name));
 
   const currentTrack = currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null;
 
@@ -132,8 +134,13 @@ function App() {
 
   const addFile = async (file: GameFile) => {
     try {
-      const contentType = file.type === 'audio' ? (file.blob as Blob)?.type || 'audio/mpeg' : 'text/markdown';
-      const blobToSend = file.type === 'audio' && file.blob ? file.blob : new Blob([file.content], { type: 'text/markdown' });
+      const contentType =
+        file.type === 'audio' ? (file.blob as Blob)?.type || 'audio/mpeg' :
+          file.type === 'video' ? (file.blob as Blob)?.type || 'video/mp4' :
+            'text/markdown';
+      const blobToSend = (file.type === 'audio' || file.type === 'video') && file.blob
+        ? file.blob
+        : new Blob([file.content], { type: 'text/markdown' });
       const uploaded = await uploadViaApi(file.campaign, file.folder, file.name, blobToSend, contentType);
       const remoteUrl = uploaded.url;
       await saveFileMetadata({
@@ -196,22 +203,28 @@ function App() {
   // --- Playback Handlers ---
 
   const togglePlay = () => {
-    if (!audioRef.current || !currentTrack) return;
-    if (isPlaying) audioRef.current.pause();
-    else audioRef.current.play();
+    if (!currentTrack) return;
+    const mediaElement = currentTrack.type === 'video' ? videoRef.current : audioRef.current;
+    if (!mediaElement) return;
+    if (isPlaying) mediaElement.pause();
+    else mediaElement.play();
     setIsPlaying(!isPlaying);
   };
 
   const skip = (seconds: number) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime += seconds;
+    if (!currentTrack) return;
+    const mediaElement = currentTrack.type === 'video' ? videoRef.current : audioRef.current;
+    if (!mediaElement) return;
+    mediaElement.currentTime += seconds;
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
-    if (audioRef.current && duration > 0) {
+    if (currentTrack && duration > 0) {
+      const mediaElement = currentTrack.type === 'video' ? videoRef.current : audioRef.current;
+      if (!mediaElement) return;
       const newTime = (val / 100) * duration;
-      audioRef.current.currentTime = newTime;
+      mediaElement.currentTime = newTime;
       setProgress(val);
       setCurrentTime(newTime);
     }
@@ -228,19 +241,40 @@ function App() {
   // --- Effects ---
 
   useEffect(() => {
-    if (audioRef.current && currentTrack) {
-      audioRef.current.src = currentTrack.content; // Content is URL for audio
-      audioRef.current.load();
-      if (isPlaying) {
-        audioRef.current.play().catch(e => console.warn("Autoplay blocked", e));
+    if (currentTrack) {
+      if (currentTrack.type === 'video') {
+        if (videoRef.current) {
+          videoRef.current.src = currentTrack.content;
+          videoRef.current.load();
+          if (isPlaying) {
+            videoRef.current.play().catch(e => console.warn("Autoplay blocked", e));
+          }
+        }
+        // Pause audio if playing
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+      } else {
+        if (audioRef.current) {
+          audioRef.current.src = currentTrack.content;
+          audioRef.current.load();
+          if (isPlaying) {
+            audioRef.current.play().catch(e => console.warn("Autoplay blocked", e));
+          }
+        }
+        // Pause video if playing
+        if (videoRef.current) {
+          videoRef.current.pause();
+        }
       }
     }
   }, [currentTrackIndex, currentTrack]);
 
   const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      const curr = audioRef.current.currentTime;
-      const dur = audioRef.current.duration;
+    const mediaElement = currentTrack?.type === 'video' ? videoRef.current : audioRef.current;
+    if (mediaElement) {
+      const curr = mediaElement.currentTime;
+      const dur = mediaElement.duration;
       setCurrentTime(curr);
       setDuration(dur);
       if (dur > 0) setProgress((curr / dur) * 100);
@@ -383,11 +417,29 @@ function App() {
 
   const renderPlayerControls = () => (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in duration-700">
-      <Cassette
-        isPlaying={isPlaying}
-        progress={duration > 0 ? currentTime / duration : 0}
-        title={currentTrack?.name || "AGUARDANDO..."}
-      />
+      {currentTrack?.type === 'video' ? (
+        <div className="relative bg-black rounded-xl overflow-hidden shadow-2xl border border-mag-cyan/30">
+          <video
+            ref={videoRef}
+            onTimeUpdate={handleTimeUpdate}
+            onEnded={() => setIsPlaying(false)}
+            onError={() => alert("Erro na reprodução do vídeo.")}
+            className="w-full max-h-[60vh] object-contain"
+            controls={false}
+          />
+          {!isPlaying && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <Video className="w-20 h-20 text-mag-cyan/50" />
+            </div>
+          )}
+        </div>
+      ) : (
+        <Cassette
+          isPlaying={isPlaying}
+          progress={duration > 0 ? currentTime / duration : 0}
+          title={currentTrack?.name || "AGUARDANDO..."}
+        />
+      )}
 
       <div className="bg-mag-panel/60 backdrop-blur-md rounded-2xl p-6 border border-white/5 shadow-2xl">
         <div className="mb-4 flex items-center space-x-4">
@@ -436,7 +488,7 @@ function App() {
                 <button
                   key={file.id}
                   onClick={() => {
-                    if (file.type === 'audio') {
+                    if (file.type === 'audio' || file.type === 'video') {
                       setAppState(AppState.PLAYER);
                       changeTrack(file.id);
                     } else {
@@ -448,9 +500,11 @@ function App() {
                     : 'hover:bg-mag-light/30 text-mag-text/80'
                     }`}
                 >
-                  {file.type === 'audio' ? <Music size={14} /> : <FileText size={14} />}
+                  {file.type === 'audio' ? <Music size={14} /> :
+                    file.type === 'video' ? <Video size={14} /> :
+                      <FileText size={14} />}
                   <span className="truncate flex-1">{file.name}</span>
-                  {file.type === 'audio' && currentTrack?.id === file.id && isPlaying && (
+                  {(file.type === 'audio' || file.type === 'video') && currentTrack?.id === file.id && isPlaying && (
                     <div className="w-1.5 h-1.5 rounded-full bg-mag-accent animate-pulse"></div>
                   )}
                 </button>
@@ -555,6 +609,7 @@ function App() {
       <div className="fixed inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-30 -z-10 mix-blend-overlay"></div>
 
       <audio ref={audioRef} onTimeUpdate={handleTimeUpdate} onEnded={() => setIsPlaying(false)} onError={() => alert("Erro na reprodução.")} />
+      <video ref={videoRef} className="hidden" />
 
       <div className="container mx-auto px-4 py-6 h-screen flex flex-col">
         {appState === AppState.LOGIN ? renderLogin() : (

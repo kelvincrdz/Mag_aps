@@ -78,7 +78,7 @@ export const processMagFile = async (file: File): Promise<MagPackage> => {
 interface SaveFilePayloadRecord {
   id: string;
   name: string;
-  type: "audio" | "document";
+  type: "audio" | "document" | "video";
   campaign: string;
   folder: string;
   url: string;
