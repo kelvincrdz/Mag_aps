@@ -28,7 +28,11 @@ export default async function handler(req: Request): Promise<Response> {
   try {
     const body = await req.json();
     const record: FileRecord = body.record;
+
+    console.log("[save-file] Saving:", record?.id);
+
     if (!record || !record.campaign || !record.folder || !record.url) {
+      console.error("[save-file] Invalid record");
       return new Response(JSON.stringify({ error: "Invalid record payload" }), {
         status: 400,
       });
@@ -36,6 +40,8 @@ export default async function handler(req: Request): Promise<Response> {
 
     const safeCampaign = slug(record.campaign);
     const indexPath = `campaigns/${safeCampaign}/index.json`;
+
+    console.log("[save-file] Index:", indexPath);
 
     // Try to read existing index.json
     let current: FileRecord[] = [];
@@ -47,10 +53,12 @@ export default async function handler(req: Request): Promise<Response> {
       const resp = await fetch(publicUrl);
       if (resp.ok) {
         current = await resp.json();
+        console.log("[save-file] Found", current.length, "existing records");
+      } else {
+        console.log("[save-file] No existing index (status", resp.status, ")");
       }
     } catch (e) {
-      // Index file might not exist yet, start with empty array
-      console.log("No existing index, creating new one");
+      console.log("[save-file] Creating new index");
     }
 
     // Merge or add

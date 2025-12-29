@@ -25,7 +25,15 @@ export default async function handler(req: Request): Promise<Response> {
     );
     const fileBlob = form.get("file");
 
+    console.log("[upload] Received:", {
+      campaign,
+      folder,
+      filename,
+      size: fileBlob instanceof Blob ? fileBlob.size : 0,
+    });
+
     if (!(fileBlob instanceof Blob)) {
+      console.error("[upload] No file blob");
       return new Response(JSON.stringify({ error: "Missing file blob" }), {
         status: 400,
       });
@@ -37,6 +45,8 @@ export default async function handler(req: Request): Promise<Response> {
     const ts = Date.now();
     const pathname = `campaigns/${safeCampaign}/${safeFolder}/${ts}-${safeName}`;
 
+    console.log("[upload] Uploading to:", pathname);
+
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from("mag-files")
@@ -46,8 +56,11 @@ export default async function handler(req: Request): Promise<Response> {
       });
 
     if (error) {
+      console.error("[upload] Supabase error:", error);
       throw new Error(`Supabase upload error: ${error.message}`);
     }
+
+    console.log("[upload] Success:", data);
 
     // Get public URL
     const {

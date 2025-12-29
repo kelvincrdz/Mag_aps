@@ -18,8 +18,11 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
+    console.log("[list-files] Request received");
     const { searchParams } = new URL(req.url);
     const campaign = searchParams.get("campaign");
+
+    console.log("[list-files] Campaign filter:", campaign || "all");
 
     const indexes: string[] = [];
     if (campaign) {
@@ -28,12 +31,20 @@ export default async function handler(req: Request): Promise<Response> {
       );
     } else {
       // Discover all campaign indices under campaigns/*/index.json
-      const { data: files } = await supabase.storage
+      console.log("[list-files] Listing campaigns folder");
+      const { data: files, error: listError } = await supabase.storage
         .from("mag-files")
         .list("campaigns", {
           limit: 1000,
           offset: 0,
         });
+
+      if (listError) {
+        console.error("[list-files] Error listing campaigns:", listError);
+        throw new Error(`Failed to list campaigns: ${listError.message}`);
+      }
+
+      console.log("[list-files] Found folders:", files?.length || 0);
 
       if (files) {
         // List subdirectories (campaigns)
