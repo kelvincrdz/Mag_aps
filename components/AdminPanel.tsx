@@ -7,6 +7,7 @@ interface AdminPanelProps {
     users: User[];
     files: GameFile[];
     onAddUser: (name: string) => void;
+    onUpdateUser: (userId: string, name: string) => void;
     onUploadFile: (file: GameFile) => void;
     onUpdatePermissions: (fileId: string, userIds: string[]) => void;
     onDeleteCampaign: (campaignName: string) => void;
@@ -17,6 +18,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     users,
     files,
     onAddUser,
+    onUpdateUser,
     onUploadFile,
     onUpdatePermissions,
     onDeleteCampaign,
@@ -203,8 +205,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                                 <button
                                                     onClick={() => {
                                                         if (editingUserName.trim()) {
-                                                            // Aqui seria ideal ter um onUpdateUser, mas vou simular localmente
-                                                            u.name = editingUserName;
+                                                            onUpdateUser(u.id, editingUserName);
                                                             setEditingUserId(null);
                                                         }
                                                     }}
@@ -357,8 +358,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <div key={file.id} className="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-mag-light/30 transition-colors">
                                 <div className="flex items-center gap-3 overflow-hidden">
                                     <div className={`p-2 rounded ${file.type === 'audio' ? 'bg-orange-900/20 text-orange-400' :
-                                            file.type === 'video' ? 'bg-purple-900/20 text-purple-400' :
-                                                'bg-blue-900/20 text-blue-400'
+                                        file.type === 'video' ? 'bg-purple-900/20 text-purple-400' :
+                                            'bg-blue-900/20 text-blue-400'
                                         }`}>
                                         {file.type === 'audio' ? <FileAudio size={20} /> :
                                             file.type === 'video' ? <FileAudio size={20} /> :

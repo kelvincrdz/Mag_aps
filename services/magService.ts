@@ -173,3 +173,34 @@ export const listAllFiles = async (): Promise<GameFile[]> => {
   }));
   return files;
 };
+
+// --- User Management ---
+import { User } from "../types";
+
+export const saveUsers = async (users: User[]): Promise<void> => {
+  const resp = await fetch("/api/save-users", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ users }),
+  });
+  if (!resp.ok) throw new Error("Falha ao salvar usuários");
+};
+
+export const listUsers = async (): Promise<User[]> => {
+  const resp = await fetch("/api/list-users");
+  if (!resp.ok) throw new Error("Falha ao listar usuários");
+  const data = await resp.json();
+  return data.users || [];
+};
+
+// --- Campaign Management ---
+export const deleteCampaignFiles = async (
+  campaignName: string
+): Promise<void> => {
+  const resp = await fetch("/api/delete-campaign", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ campaignName }),
+  });
+  if (!resp.ok) throw new Error("Falha ao deletar campanha");
+};

@@ -19,12 +19,13 @@ import { Cassette } from './components/Cassette';
 import { MarkdownViewer } from './components/MarkdownViewer';
 import { AdminPanel } from './components/AdminPanel';
 import { AppState, GameFile, User, INITIAL_USERS } from './types';
-import { uploadViaApi, saveFileMetadata, listAllFiles } from './services/magService';
+import { uploadViaApi, saveFileMetadata, listAllFiles, saveUsers, listUsers, deleteCampaignFiles } from './services/magService';
 
 function App() {
   // --- Global State ---
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [files, setFiles] = useState<GameFile[]>([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
 
   // --- Session State ---
   const [appState, setAppState] = useState<AppState>(AppState.LOGIN);
@@ -79,6 +80,23 @@ function App() {
 
   // --- Handlers ---
 
+  // Load users from backend on mount
+  useEffect(() => {
+    if (!usersLoaded) {
+      listUsers()
+        .then(loadedUsers => {
+          if (loadedUsers.length > 0) {
+            setUsers(loadedUsers);
+          }
+          setUsersLoaded(true);
+        })
+        .catch(err => {
+          console.error('Falha ao carregar usuários', err);
+          setUsersLoaded(true);
+        });
+    }
+  }, [usersLoaded]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const user = users.find(u => u.id === selectedUserLoginId);
@@ -123,13 +141,33 @@ function App() {
 
   // --- Admin Handlers ---
 
-  const addUser = (name: string) => {
+  const addUser = async (name: string) => {
     const newUser: User = {
       id: crypto.randomUUID(),
       name,
       role: 'player'
     };
-    setUsers([...users, newUser]);
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    try {
+      await saveUsers(updatedUsers);
+    } catch (err) {
+      console.error('Falha ao salvar usuário', err);
+      alert('Erro ao salvar usuário');
+    }
+  };
+
+  const updateUser = async (userId: string, name: string) => {
+    const updatedUsers = users.map(u =>
+      u.id === userId ? { ...u, name } : u
+    );
+    setUsers(updatedUsers);
+    try {
+      await saveUsers(updatedUsers);
+    } catch (err) {
+      console.error('Falha ao atualizar usuário', err);
+      alert('Erro ao atualizar usuário');
+    }
   };
 
   const addFile = async (file: GameFile) => {
@@ -181,22 +219,32 @@ function App() {
     }
   };
 
-  const deleteCampaign = (campaignName: string) => {
+  const deleteCampaign = async (campaignName: string) => {
     if (!confirm(`Tem certeza que deseja deletar a campanha "${campaignName}" e todos os seus arquivos?`)) {
       return;
     }
-    // Remove todos os arquivos da campanha
-    const updatedFiles = files.filter(f => f.campaign !== campaignName);
-    setFiles(updatedFiles);
-    // Se a campanha deletada estava selecionada, volta para seleção
-    if (selectedCampaign === campaignName) {
-      setSelectedCampaign(null);
-      setCurrentTrackIndex(-1);
-      setIsPlaying(false);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+
+    try {
+      // Delete from backend
+      await deleteCampaignFiles(campaignName);
+
+      // Remove todos os arquivos da campanha localmente
+      const updatedFiles = files.filter(f => f.campaign !== campaignName);
+      setFiles(updatedFiles);
+
+      // Se a campanha deletada estava selecionada, volta para seleção
+      if (selectedCampaign === campaignName) {
+        setSelectedCampaign(null);
+        setCurrentTrackIndex(-1);
+        setIsPlaying(false);
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
       }
+    } catch (err) {
+      console.error('Falha ao deletar campanha', err);
+      alert('Erro ao deletar campanha');
     }
   };
 
@@ -594,6 +642,7 @@ function App() {
         users={users}
         files={files}
         onAddUser={addUser}
+        onUpdateUser={updateUser}
         onUploadFile={addFile}
         onUpdatePermissions={updatePermissions}
         onDeleteCampaign={deleteCampaign}
