@@ -342,7 +342,7 @@ function App() {
   const isAdminSelected = selectedUser?.role === 'admin';
 
   const renderLogin = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-mag-mid to-mag-dark p-4">
+    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-mag-mid to-mag-dark p-4">
       <div className="w-full max-w-md bg-mag-panel/50 backdrop-blur-lg border border-mag-light p-8 rounded-xl shadow-2xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-serif text-white mb-2 tracking-wider">MAG PLAYER</h1>

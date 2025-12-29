@@ -1,7 +1,7 @@
 
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState, ChangeEvent, useMemo } from 'react';
 import { User, GameFile, FileType } from '../types';
-import { Upload, Users, FileAudio, FileText, Check, X, Shield, Plus } from 'lucide-react';
+import { Upload, Users, FileAudio, FileText, Check, X, Shield, Plus, Filter } from 'lucide-react';
 
 interface AdminPanelProps {
     users: User[];
@@ -39,6 +39,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     // Permission Modal State
     const [editingFileId, setEditingFileId] = useState<string | null>(null);
     const [editingCampaign, setEditingCampaign] = useState<string | null>(null);
+
+    // Filter State
+    const [filterCampaign, setFilterCampaign] = useState<string>('');
+    const [filterFolder, setFilterFolder] = useState<string>('');
 
     // --- Handlers ---
 
@@ -137,18 +141,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     const toggleCampaignPermission = (userId: string, campaign: string) => {
         const campaignFiles = files.filter(f => f.campaign === campaign);
+        const accessibleFiles = campaignFiles.filter(f => f.allowedUserIds.includes(userId));
+        const hasFullAccess = accessibleFiles.length === campaignFiles.length;
+
+        // Se tem acesso total, remove de todos. Se não, adiciona a todos
+        const shouldAdd = !hasFullAccess;
+
         campaignFiles.forEach(file => {
             const currentPerms = new Set(file.allowedUserIds);
-            if (currentPerms.has(userId)) {
-                currentPerms.delete(userId);
-            } else {
+            if (shouldAdd) {
                 currentPerms.add(userId);
+            } else {
+                currentPerms.delete(userId);
             }
             onUpdatePermissions(file.id, Array.from(currentPerms));
         });
     };
 
     const editingFile = files.find(f => f.id === editingFileId);
+
+    // Get unique campaigns and folders for filter
+    const availableCampaigns = useMemo(() =>
+        Array.from(new Set(files.map(f => f.campaign))).sort()
+        , [files]);
+
+    const availableFolders = useMemo(() =>
+        Array.from(new Set(files.map(f => f.folder))).sort()
+        , [files]);
+
+    // Filtered files
+    const filteredFiles = useMemo(() => {
+        return files.filter(file => {
+            const matchesCampaign = !filterCampaign || file.campaign === filterCampaign;
+            const matchesFolder = !filterFolder || file.folder === filterFolder;
+            return matchesCampaign && matchesFolder;
+        });
+    }, [files, filterCampaign, filterFolder]);
 
     return (
         <div className="h-full flex flex-col bg-mag-dark/95 text-mag-text p-6 overflow-hidden custom-scrollbar">
@@ -305,11 +333,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     {/* Campanhas Disponíveis */}
-                    <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5">
+                    <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5 flex flex-col">
                         <h3 className="text-lg font-serif text-mag-cyan mb-4 flex items-center gap-2">
                             <FileText size={18} /> Campanhas Disponíveis
                         </h3>
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
                             {Array.from(new Set(files.map(f => f.campaign))).map(campaign => {
                                 const fileCount = files.filter(f => f.campaign === campaign).length;
                                 return (
@@ -347,14 +375,67 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {/* Right Column: File List & Permissions */}
                 <div className="flex-1 bg-mag-panel/30 rounded-lg border border-white/5 flex flex-col overflow-hidden">
                     <div className="p-4 border-b border-white/5 bg-black/20">
-                        <h3 className="font-serif text-mag-cyan">Arquivos do Sistema</h3>
+                        <h3 className="font-serif text-mag-cyan mb-3">Arquivos do Sistema</h3>
+
+                        {/* Filter Controls */}
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <label className="text-xs uppercase tracking-wider text-mag-text/50 block mb-1.5 flex items-center gap-1">
+                                    <Filter size={12} /> Campanha
+                                </label>
+                                <select
+                                    value={filterCampaign}
+                                    onChange={(e) => setFilterCampaign(e.target.value)}
+                                    className="w-full bg-black/30 border border-mag-light/30 rounded px-2 py-1.5 text-sm focus:border-mag-cyan focus:outline-none"
+                                >
+                                    <option value="">Todas</option>
+                                    {availableCampaigns.map(campaign => (
+                                        <option key={campaign} value={campaign}>{campaign}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex-1">
+                                <label className="text-xs uppercase tracking-wider text-mag-text/50 block mb-1.5 flex items-center gap-1">
+                                    <Filter size={12} /> Pasta/Tipo
+                                </label>
+                                <select
+                                    value={filterFolder}
+                                    onChange={(e) => setFilterFolder(e.target.value)}
+                                    className="w-full bg-black/30 border border-mag-light/30 rounded px-2 py-1.5 text-sm focus:border-mag-cyan focus:outline-none"
+                                >
+                                    <option value="">Todas</option>
+                                    {availableFolders.map(folder => (
+                                        <option key={folder} value={folder}>{folder}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {(filterCampaign || filterFolder) && (
+                                <button
+                                    onClick={() => {
+                                        setFilterCampaign('');
+                                        setFilterFolder('');
+                                    }}
+                                    className="self-end px-3 py-1.5 bg-mag-accent/20 hover:bg-mag-accent/30 rounded text-xs text-mag-accent"
+                                    title="Limpar filtros"
+                                >
+                                    Limpar
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Results count */}
+                        <div className="mt-2 text-xs text-mag-text/50">
+                            {filteredFiles.length} de {files.length} arquivo{files.length !== 1 ? 's' : ''}
+                        </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
-                        {files.length === 0 && (
-                            <div className="text-center py-20 text-mag-text/30 italic">Nenhum arquivo no sistema.</div>
+                        {filteredFiles.length === 0 && (
+                            <div className="text-center py-20 text-mag-text/30 italic">
+                                {files.length === 0 ? 'Nenhum arquivo no sistema.' : 'Nenhum arquivo corresponde aos filtros.'}
+                            </div>
                         )}
-                        {files.map(file => (
+                        {filteredFiles.map(file => (
                             <div key={file.id} className="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-mag-light/30 transition-colors">
                                 <div className="flex items-center gap-3 overflow-hidden">
                                     <div className={`p-2 rounded ${file.type === 'audio' ? 'bg-orange-900/20 text-orange-400' :
