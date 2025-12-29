@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vercel/blob": "^0.23.4",
     "jszip": "^3.10.1",
     "lucide-react": "^0.454.0",
     "react": "^18.3.1",
@@ -18,7 +17,6 @@
     "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.12.7",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

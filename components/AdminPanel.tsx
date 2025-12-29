@@ -1,7 +1,7 @@
 
-import React, { useState, ChangeEvent, FormEvent } from 'react';
+import React, { useState, ChangeEvent } from 'react';
 import { User, GameFile, FileType } from '../types';
-import { Upload, Users, FileAudio, FileText, Check, X, Shield, Plus, Loader2 } from 'lucide-react';
+import { Upload, Users, FileAudio, FileText, Check, X, Shield, Plus } from 'lucide-react';
 
 interface AdminPanelProps {
   users: User[];
@@ -25,8 +25,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   
   // Upload Form
   const [campaignName, setCampaignName] = useState('MAG 01');
-  const [folderName, setFolderName] = useState('Arquivos'); // Acts as "Type"
-  const [isUploading, setIsUploading] = useState(false);
+  const [folderName, setFolderName] = useState('Arquivos');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Permission Modal State
+  const [editingFileId, setEditingFileId] = useState<string | null>(null);
 
   // --- Handlers ---
 
@@ -38,79 +41,66 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleUploadSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const fileInput = form.elements.namedItem('file') as HTMLInputElement;
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const uploadedFile = e.target.files?.[0];
+    if (!uploadedFile) return;
 
-    if (!fileInput.files || fileInput.files.length === 0) {
-      alert("Selecione um arquivo.");
+    setIsProcessing(true);
+    
+    // Determine Type
+    let type: FileType = 'document';
+    if (uploadedFile.name.endsWith('.mp3')) type = 'audio';
+    else if (uploadedFile.name.endsWith('.md')) type = 'document';
+    else {
+      alert('Apenas arquivos .md ou .mp3 são permitidos.');
+      setIsProcessing(false);
       return;
     }
 
-    const file = fileInput.files[0];
-    setIsUploading(true);
-
     try {
-      // Determine Type for frontend logic
-      let fileType: FileType = 'document';
-      if (file.name.endsWith('.mp3')) fileType = 'audio';
-      else if (file.name.endsWith('.md')) fileType = 'document';
-      else {
-        alert('Apenas arquivos .md ou .mp3 são permitidos.');
-        setIsUploading(false);
-        return;
+      let content = '';
+      let blob: Blob | undefined = undefined;
+
+      if (type === 'audio') {
+        blob = uploadedFile;
+        content = URL.createObjectURL(blob);
+      } else {
+        content = await uploadedFile.text();
       }
 
-      // Call Vercel Serverless Function
-      const response = await fetch(
-        `/api/files/upload?filename=${encodeURIComponent(file.name)}&campaign=${encodeURIComponent(campaignName)}&type=${encodeURIComponent(folderName)}`,
-        {
-          method: 'POST',
-          body: file,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Falha no upload para Vercel Blob');
-      }
-
-      const blobResult = await response.json();
-
-      // Create local representation (Simulating DB record returned from API)
       const newFile: GameFile = {
-        id: blobResult.url, // Using URL as ID since it's unique from Blob
-        name: file.name,
-        type: fileType,
+        id: crypto.randomUUID(),
+        name: uploadedFile.name,
+        type,
         campaign: campaignName,
         folder: folderName,
-        content: blobResult.url, // Vercel Blob Public URL
+        content,
+        blob,
         allowedUserIds: [] // Default: no access
       };
 
       onUploadFile(newFile);
-      
-      // Reset Form
-      form.reset();
-      
     } catch (error) {
-      console.error("Erro no upload:", error);
-      alert("Erro ao enviar arquivo para o servidor.");
+      console.error("Upload error", error);
+      alert("Erro ao processar arquivo.");
     } finally {
-      setIsUploading(false);
+      setIsProcessing(false);
+      // Reset input
+      e.target.value = '';
     }
   };
 
-  const togglePermission = (fileId: string, userId: string, currentAllowed: string[]) => {
-    const newAllowed = currentAllowed.includes(userId)
-      ? currentAllowed.filter(id => id !== userId)
-      : [...currentAllowed, userId];
-    
-    onUpdatePermissions(fileId, newAllowed);
+  const toggleUserPermission = (userId: string, currentFile: GameFile) => {
+    const currentPerms = new Set(currentFile.allowedUserIds);
+    if (currentPerms.has(userId)) {
+      currentPerms.delete(userId);
+    } else {
+      currentPerms.add(userId);
+    }
+    onUpdatePermissions(currentFile.id, Array.from(currentPerms));
   };
 
-  // Only show players, not admins, in permission lists
-  const playerUsers = users.filter(u => u.role !== 'admin');
+  const editingFile = files.find(f => f.id === editingFileId);
 
   return (
     <div className="h-full flex flex-col bg-mag-dark/95 text-mag-text p-6 overflow-hidden custom-scrollbar">
@@ -121,7 +111,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <Shield className="text-mag-accent w-8 h-8" />
             <div>
                 <h1 className="text-2xl font-serif text-white">Painel do Mestre</h1>
-                <p className="text-xs text-mag-cyan uppercase tracking-wider">Vercel Blob & Permissions</p>
+                <p className="text-xs text-mag-cyan uppercase tracking-wider">Gerenciamento de Arquivos e Permissões</p>
             </div>
         </div>
         <button onClick={onExit} className="px-4 py-2 border border-mag-light/50 rounded hover:bg-mag-light/20">
@@ -152,7 +142,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </button>
                 </form>
                 <div className="mt-4 flex flex-wrap gap-2">
-                    {playerUsers.map(u => (
+                    {users.filter(u => u.role !== 'admin').map(u => (
                         <span key={u.id} className="text-xs bg-black/50 px-2 py-1 rounded border border-white/10 text-mag-text/70">
                             {u.name}
                         </span>
@@ -160,128 +150,131 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
             </div>
 
-            {/* Upload Form */}
+            {/* Upload */}
             <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5">
                 <h3 className="text-lg font-serif text-mag-cyan mb-4 flex items-center gap-2">
-                    <Upload size={18} /> Upload Remoto
+                    <Upload size={18} /> Upload de Arquivos
                 </h3>
                 
-                <form onSubmit={handleUploadSubmit} className="space-y-4">
+                <div className="space-y-4">
                     <div>
                         <label className="text-xs uppercase tracking-wider text-mag-text/60 block mb-1">Campanha</label>
-                        <select 
+                        <input 
+                            type="text" 
                             value={campaignName}
                             onChange={e => setCampaignName(e.target.value)}
-                            className="w-full bg-black/30 border border-mag-light/30 rounded px-3 py-2 text-white"
-                        >
-                          <option value="MAG 01">MAG 01</option>
-                          <option value="REV 02">REV 02</option>
-                          <option value="EXTRAS">EXTRAS</option>
-                        </select>
+                            className="w-full bg-black/30 border border-mag-light/30 rounded px-3 py-2"
+                        />
                     </div>
                     <div>
-                        <label className="text-xs uppercase tracking-wider text-mag-text/60 block mb-1">Tipo / Pasta</label>
-                        <select 
+                        <label className="text-xs uppercase tracking-wider text-mag-text/60 block mb-1">Pasta / Tipo</label>
+                        <input 
+                            type="text" 
                             value={folderName}
                             onChange={e => setFolderName(e.target.value)}
-                            className="w-full bg-black/30 border border-mag-light/30 rounded px-3 py-2 text-white"
-                        >
-                          <option value="Arquivos">Arquivos</option>
-                          <option value="Depoimentos">Depoimentos</option>
-                          <option value="Pistas">Pistas</option>
-                        </select>
+                            className="w-full bg-black/30 border border-mag-light/30 rounded px-3 py-2"
+                        />
                     </div>
 
                     <div className="pt-2">
-                         <input 
-                            name="file" 
-                            type="file" 
-                            accept=".md,.mp3" 
-                            className="w-full text-sm text-mag-text file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-mag-light/20 file:text-mag-cyan hover:file:bg-mag-light/40 cursor-pointer"
-                            disabled={isUploading}
-                          />
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-mag-light/30 rounded-lg cursor-pointer hover:bg-mag-light/10 transition-colors">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                {isProcessing ? (
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-mag-cyan"></div>
+                                ) : (
+                                    <>
+                                        <Upload className="w-8 h-8 mb-2 text-mag-text/50" />
+                                        <p className="text-sm text-mag-text/70"><span className="font-semibold">Clique para upload</span></p>
+                                        <p className="text-xs text-mag-text/50">.MD ou .MP3</p>
+                                    </>
+                                )}
+                            </div>
+                            <input type="file" className="hidden" accept=".md,.mp3" onChange={handleFileUpload} disabled={isProcessing} />
+                        </label>
                     </div>
-
-                    <button 
-                      type="submit" 
-                      disabled={isUploading}
-                      className="w-full py-3 bg-mag-accent hover:bg-red-700 text-white font-bold rounded flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isUploading ? <Loader2 className="animate-spin" /> : <Upload size={18} />}
-                      {isUploading ? "Enviando para Vercel Blob..." : "Enviar Arquivo"}
-                    </button>
-                </form>
+                </div>
             </div>
         </div>
 
-        {/* Right Column: Permission Management */}
+        {/* Right Column: File List & Permissions */}
         <div className="flex-1 bg-mag-panel/30 rounded-lg border border-white/5 flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-white/5 bg-black/20 flex justify-between items-center">
-                <h3 className="font-serif text-mag-cyan">Gestão de Permissões</h3>
-                <span className="text-xs text-mag-text/40">{files.length} arquivos encontrados</span>
+            <div className="p-4 border-b border-white/5 bg-black/20">
+                <h3 className="font-serif text-mag-cyan">Arquivos do Sistema</h3>
             </div>
             
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
                 {files.length === 0 && (
-                    <div className="text-center py-20 text-mag-text/30 italic">
-                      Nenhum arquivo encontrado no banco de dados.
-                    </div>
+                    <div className="text-center py-20 text-mag-text/30 italic">Nenhum arquivo no sistema.</div>
                 )}
-                
                 {files.map(file => (
-                    <div key={file.id} className="bg-black/40 p-4 rounded border border-white/5 hover:border-mag-light/30 transition-colors">
-                        <div className="flex items-start justify-between mb-3 border-b border-white/5 pb-2">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded ${file.type === 'audio' ? 'bg-orange-900/20 text-orange-400' : 'bg-blue-900/20 text-blue-400'}`}>
-                                    {file.type === 'audio' ? <FileAudio size={20} /> : <FileText size={20} />}
-                                </div>
-                                <div>
-                                    <div className="font-medium text-white">{file.name}</div>
-                                    <div className="text-xs text-mag-text/50 flex gap-2">
-                                        <span className="bg-white/10 px-1.5 rounded uppercase">{file.campaign}</span>
-                                        <span className="bg-white/10 px-1.5 rounded uppercase">{file.folder}</span>
-                                    </div>
-                                </div>
+                    <div key={file.id} className="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-mag-light/30 transition-colors">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className={`p-2 rounded ${file.type === 'audio' ? 'bg-orange-900/20 text-orange-400' : 'bg-blue-900/20 text-blue-400'}`}>
+                                {file.type === 'audio' ? <FileAudio size={20} /> : <FileText size={20} />}
                             </div>
-                            <div className="text-[10px] text-mag-text/30 font-mono max-w-[150px] truncate" title={file.content}>
-                              {file.content.startsWith('blob:') ? 'Local Blob' : 'Vercel Remote'}
+                            <div>
+                                <div className="font-medium truncate max-w-[200px]">{file.name}</div>
+                                <div className="text-xs text-mag-text/50 flex gap-2">
+                                    <span className="bg-white/10 px-1.5 rounded">{file.campaign}</span>
+                                    <span className="bg-white/10 px-1.5 rounded">{file.folder}</span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* User Checkboxes */}
-                        <div className="pl-11">
-                           <p className="text-xs uppercase tracking-wider text-mag-text/40 mb-2">Acesso Permitido:</p>
-                           <div className="flex flex-wrap gap-2">
-                             {playerUsers.length === 0 && <span className="text-xs text-mag-text/30">Sem jogadores cadastrados.</span>}
-                             
-                             {playerUsers.map(user => {
-                               const isAllowed = file.allowedUserIds.includes(user.id);
-                               return (
-                                 <label 
-                                   key={user.id} 
-                                   className={`flex items-center gap-2 px-3 py-1.5 rounded border text-sm cursor-pointer transition-all select-none ${
-                                     isAllowed 
-                                     ? 'bg-mag-cyan/10 border-mag-cyan/50 text-mag-cyan' 
-                                     : 'bg-black/20 border-white/10 text-mag-text/50 hover:border-white/30'
-                                   }`}
-                                 >
-                                   <input 
-                                      type="checkbox" 
-                                      checked={isAllowed}
-                                      onChange={() => togglePermission(file.id, user.id, file.allowedUserIds)}
-                                      className="hidden"
-                                   />
-                                   {isAllowed ? <Check size={14} /> : <div className="w-3.5 h-3.5" />}
-                                   {user.name}
-                                 </label>
-                               );
-                             })}
-                           </div>
+                        <div className="flex items-center gap-4">
+                            <div className="text-xs text-right text-mag-text/40">
+                                {file.allowedUserIds.length} acessos
+                            </div>
+                            <button 
+                                onClick={() => setEditingFileId(file.id)}
+                                className={`px-3 py-1.5 rounded text-xs uppercase tracking-wider border transition-all ${
+                                    editingFileId === file.id 
+                                    ? 'bg-mag-accent text-white border-mag-accent' 
+                                    : 'border-mag-light/30 hover:border-mag-cyan hover:text-mag-cyan'
+                                }`}
+                            >
+                                Compartilhar
+                            </button>
                         </div>
                     </div>
                 ))}
             </div>
         </div>
+
+        {/* Permission Side Panel (Overlay or Third Column) */}
+        {editingFile && (
+            <div className="w-64 bg-mag-dark border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-300">
+                <div className="p-4 border-b border-white/10 bg-mag-accent/10">
+                    <h4 className="text-sm font-bold text-mag-accent uppercase tracking-widest mb-1">Permissões</h4>
+                    <p className="text-xs truncate text-white">{editingFile.name}</p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                    {users.filter(u => u.role !== 'admin').map(user => {
+                        const hasAccess = editingFile.allowedUserIds.includes(user.id);
+                        return (
+                            <button
+                                key={user.id}
+                                onClick={() => toggleUserPermission(user.id, editingFile)}
+                                className={`w-full text-left p-3 rounded border flex items-center justify-between transition-all ${
+                                    hasAccess 
+                                    ? 'bg-mag-cyan/10 border-mag-cyan/50 text-white' 
+                                    : 'bg-transparent border-white/5 text-mag-text/50 hover:bg-white/5'
+                                }`}
+                            >
+                                <span className="text-sm">{user.name}</span>
+                                {hasAccess ? <Check size={14} className="text-mag-cyan" /> : <X size={14} />}
+                            </button>
+                        );
+                    })}
+                     {users.filter(u => u.role !== 'admin').length === 0 && (
+                         <p className="text-xs text-center text-mag-text/30 mt-4">Nenhum jogador cadastrado.</p>
+                     )}
+                </div>
+                <div className="p-4 border-t border-white/10">
+                    <button onClick={() => setEditingFileId(null)} className="w-full py-2 bg-white/5 hover:bg-white/10 rounded text-xs uppercase">Concluir</button>
+                </div>
+            </div>
+        )}
 
       </div>
     </div>
