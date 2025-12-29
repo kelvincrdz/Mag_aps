@@ -74,8 +74,6 @@ export const processMagFile = async (file: File): Promise<MagPackage> => {
 };
 
 // --- Vercel Blob Integration ---
-
-interface UploadUrlResponse {
 interface SaveFilePayloadRecord {
   id: string;
   name: string;
@@ -84,16 +82,8 @@ interface SaveFilePayloadRecord {
   folder: string;
   url: string;
   allowedUserIds: string[];
-interface SaveFilePayloadRecord {
 }
 
-export const requestUploadUrl = async (
-  campaign: string,
-  folder: string,
-  filename: string,
-  allowedContentTypes?: string[]
-): Promise<UploadUrlResponse> => {
-  const resp = await fetch("/api/upload-url", {
 export const uploadViaApi = async (
   campaign: string,
   folder: string,
@@ -102,15 +92,19 @@ export const uploadViaApi = async (
   contentType: string
 ): Promise<{ url: string }> => {
   const fd = new FormData();
-  fd.set('campaign', campaign);
-  fd.set('folder', folder);
-  fd.set('filename', filename);
-  fd.set('contentType', contentType);
-  fd.set('file', fileOrBlob);
-  const resp = await fetch('/api/upload', { method: 'POST', body: fd });
-  if (!resp.ok) throw new Error('Falha ao enviar arquivo');
+  fd.set("campaign", campaign);
+  fd.set("folder", folder);
+  fd.set("filename", filename);
+  fd.set("contentType", contentType);
+  fd.set("file", fileOrBlob);
+  const resp = await fetch("/api/upload", { method: "POST", body: fd });
+  if (!resp.ok) throw new Error("Falha ao enviar arquivo");
   return resp.json();
 };
+
+export const saveFileMetadata = async (
+  record: SaveFilePayloadRecord
+): Promise<void> => {
   const resp = await fetch("/api/save-file", {
     method: "POST",
     headers: { "content-type": "application/json" },
