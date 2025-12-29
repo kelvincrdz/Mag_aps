@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { MagPackage, AudioTrack, DocumentFile, GameFile } from "../types";
+import { supabase } from "../lib/supabase";
 
 export const processMagFile = async (file: File): Promise<MagPackage> => {
   const zip = new JSZip();
@@ -92,36 +93,50 @@ export const uploadViaApi = async (
   contentType: string
 ): Promise<{ url: string }> => {
   try {
-    const fd = new FormData();
-    fd.set("campaign", campaign);
-    fd.set("folder", folder);
-    fd.set("filename", filename);
-    fd.set("contentType", contentType);
-    fd.set("file", fileOrBlob);
+    // Upload direto para Supabase (evita limite de 4MB do Vercel Edge)
+    const slugify = (s: string) =>
+      s
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9._-]/g, "")
+        .replace(/-+/g, "-");
 
-    console.log("Uploading to /api/upload:", {
+    const safeCampaign = slugify(campaign);
+    const safeFolder = slugify(folder);
+    const safeName = slugify(filename);
+    const ts = Date.now();
+    const pathname = `campaigns/${safeCampaign}/${safeFolder}/${ts}-${safeName}`;
+
+    console.log("Uploading directly to Supabase:", {
       campaign,
       folder,
       filename,
       contentType,
       size: fileOrBlob.size,
+      pathname,
     });
 
-    const resp = await fetch("/api/upload", { method: "POST", body: fd });
+    // Upload direto para o Supabase Storage
+    const { data, error } = await supabase.storage
+      .from("mag-files")
+      .upload(pathname, fileOrBlob, {
+        contentType,
+        upsert: false,
+      });
 
-    if (!resp.ok) {
-      const errorData = await resp
-        .json()
-        .catch(() => ({ error: "Unknown error" }));
-      console.error("Upload failed:", resp.status, errorData);
-      throw new Error(
-        errorData.error || `Upload failed with status ${resp.status}`
-      );
+    if (error) {
+      console.error("Supabase upload error:", error);
+      throw new Error(`Erro no upload: ${error.message}`);
     }
 
-    const result = await resp.json();
-    console.log("Upload successful:", result);
-    return result;
+    console.log("Upload successful:", data);
+
+    // Obter URL pública
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("mag-files").getPublicUrl(pathname);
+
+    return { url: publicUrl };
   } catch (error) {
     console.error("Upload error in service:", error);
     throw new Error(
