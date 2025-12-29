@@ -9,6 +9,7 @@ interface AdminPanelProps {
     onAddUser: (name: string) => void;
     onUploadFile: (file: GameFile) => void;
     onUpdatePermissions: (fileId: string, userIds: string[]) => void;
+    onDeleteCampaign: (campaignName: string) => void;
     onExit: () => void;
 }
 
@@ -18,6 +19,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     onAddUser,
     onUploadFile,
     onUpdatePermissions,
+    onDeleteCampaign,
     onExit
 }) => {
     // --- Local State for Forms ---
@@ -237,6 +239,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </div>
                         </div>
                     </div>
+
+                    {/* Campanhas Disponíveis */}
+                    <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5">
+                        <h3 className="text-lg font-serif text-mag-cyan mb-4 flex items-center gap-2">
+                            <FileText size={18} /> Campanhas Disponíveis
+                        </h3>
+                        <div className="space-y-2">
+                            {Array.from(new Set(files.map(f => f.campaign))).map(campaign => {
+                                const fileCount = files.filter(f => f.campaign === campaign).length;
+                                return (
+                                    <div key={campaign} className="flex items-center justify-between bg-black/30 p-3 rounded border border-white/5 hover:border-mag-accent/30 transition-colors">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium text-white truncate">{campaign}</div>
+                                            <div className="text-xs text-mag-text/50">{fileCount} arquivo{fileCount !== 1 ? 's' : ''}</div>
+                                        </div>
+                                        <button
+                                            onClick={() => onDeleteCampaign(campaign)}
+                                            className="ml-3 p-2 rounded text-mag-accent/70 hover:bg-mag-accent/10 hover:text-mag-accent transition-all"
+                                            title="Deletar campanha"
+                                        >
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            {files.length === 0 && (
+                                <p className="text-center text-mag-text/30 text-sm py-4">Nenhuma campanha cadastrada</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Right Column: File List & Permissions */}
@@ -271,8 +303,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                     <button
                                         onClick={() => setEditingFileId(file.id)}
                                         className={`px-3 py-1.5 rounded text-xs uppercase tracking-wider border transition-all ${editingFileId === file.id
-                                                ? 'bg-mag-accent text-white border-mag-accent'
-                                                : 'border-mag-light/30 hover:border-mag-cyan hover:text-mag-cyan'
+                                            ? 'bg-mag-accent text-white border-mag-accent'
+                                            : 'border-mag-light/30 hover:border-mag-cyan hover:text-mag-cyan'
                                             }`}
                                     >
                                         Compartilhar
@@ -298,8 +330,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         key={user.id}
                                         onClick={() => toggleUserPermission(user.id, editingFile)}
                                         className={`w-full text-left p-3 rounded border flex items-center justify-between transition-all ${hasAccess
-                                                ? 'bg-mag-cyan/10 border-mag-cyan/50 text-white'
-                                                : 'bg-transparent border-white/5 text-mag-text/50 hover:bg-white/5'
+                                            ? 'bg-mag-cyan/10 border-mag-cyan/50 text-white'
+                                            : 'bg-transparent border-white/5 text-mag-text/50 hover:bg-white/5'
                                             }`}
                                     >
                                         <span className="text-sm">{user.name}</span>

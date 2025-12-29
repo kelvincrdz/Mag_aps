@@ -174,6 +174,25 @@ function App() {
     }
   };
 
+  const deleteCampaign = (campaignName: string) => {
+    if (!confirm(`Tem certeza que deseja deletar a campanha "${campaignName}" e todos os seus arquivos?`)) {
+      return;
+    }
+    // Remove todos os arquivos da campanha
+    const updatedFiles = files.filter(f => f.campaign !== campaignName);
+    setFiles(updatedFiles);
+    // Se a campanha deletada estava selecionada, volta para seleção
+    if (selectedCampaign === campaignName) {
+      setSelectedCampaign(null);
+      setCurrentTrackIndex(-1);
+      setIsPlaying(false);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    }
+  };
+
   // --- Playback Handlers ---
 
   const togglePlay = () => {
@@ -523,6 +542,7 @@ function App() {
         onAddUser={addUser}
         onUploadFile={addFile}
         onUpdatePermissions={updatePermissions}
+        onDeleteCampaign={deleteCampaign}
         onExit={() => setAppState(AppState.CAMPAIGN_SELECT)}
       />
     );
