@@ -1,15 +1,31 @@
-export interface AudioTrack {
+
+
+export type FileType = 'audio' | 'document';
+
+export interface User {
   id: string;
   name: string;
-  url: string;
-  blob: Blob;
-  type: string;
+  role: 'admin' | 'player';
 }
 
-export interface DocumentFile {
+export interface GameFile {
   id: string;
   name: string;
-  content: string; // Markdown content
+  type: FileType;
+  campaign: string;
+  folder: string; // e.g., "Depoimentos", "Arquivos"
+  content: string; // URL for audio, Text for Markdown
+  blob?: Blob; // Keep blob for audio mainly
+  allowedUserIds: string[];
+}
+
+export interface AudioTrack extends GameFile {
+  type: 'audio';
+  url: string; // Alias for content
+}
+
+export interface DocumentFile extends GameFile {
+  type: 'document';
 }
 
 export interface MagPackage {
@@ -19,8 +35,15 @@ export interface MagPackage {
 
 export enum AppState {
   LOGIN,
+  CAMPAIGN_SELECT,
   PLAYER,
-  BROWSER
+  BROWSER,
+  ADMIN
 }
 
-export const ACCESS_CODE = "ORC/DDAE-11.25";
+// Default initial users
+export const INITIAL_USERS: User[] = [
+  { id: 'admin-01', name: 'Mestre (Admin)', role: 'admin' },
+  { id: 'player-01', name: 'Jogador 1', role: 'player' },
+  { id: 'player-02', name: 'Jogador 2', role: 'player' }
+];

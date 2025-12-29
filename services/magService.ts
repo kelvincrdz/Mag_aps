@@ -1,3 +1,4 @@
+
 import JSZip from 'jszip';
 import { MagPackage, AudioTrack, DocumentFile } from '../types';
 
@@ -14,19 +15,34 @@ export const processMagFile = async (file: File): Promise<MagPackage> => {
     if (zipEntry.dir) return;
 
     const lowerName = zipEntry.name.toLowerCase();
+    const parts = relativePath.split('/');
+    const name = parts.pop() || relativePath;
+    
+    // Heuristic for metadata from path: Campaign/Folder/File
+    let campaign = 'Imported';
+    let folder = 'Geral';
+    
+    if (parts.length >= 2) {
+      campaign = parts[0];
+      folder = parts[parts.length - 1];
+    } else if (parts.length === 1) {
+      folder = parts[0];
+    }
     
     // Check for audio files
     if (/\.(mp3|wav|ogg|m4a|aac|flac|oga)$/.test(lowerName)) {
       const promise = zipEntry.async('blob').then((blob) => {
         const url = URL.createObjectURL(blob);
-        // Simple heuristic to clean up filename
-        const name = relativePath.split('/').pop() || relativePath;
         tracks.push({
           id: relativePath,
           name,
           url,
+          content: url,
           blob,
-          type: 'audio'
+          type: 'audio',
+          campaign,
+          folder,
+          allowedUserIds: []
         });
       });
       filePromises.push(promise);
@@ -35,11 +51,14 @@ export const processMagFile = async (file: File): Promise<MagPackage> => {
     // Check for markdown files
     if (/\.(md|markdown)$/.test(lowerName)) {
       const promise = zipEntry.async('string').then((content) => {
-        const name = relativePath.split('/').pop() || relativePath;
         documents.push({
           id: relativePath,
           name,
-          content
+          content,
+          type: 'document',
+          campaign,
+          folder,
+          allowedUserIds: []
         });
       });
       filePromises.push(promise);

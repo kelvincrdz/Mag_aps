@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { 
   FolderOpen, 
@@ -9,105 +10,132 @@ import {
   LogOut, 
   Music,
   ChevronLeft,
-  Loader2
+  ChevronRight,
+  Folder,
+  Settings
 } from 'lucide-react';
-import { processMagFile } from './services/magService';
 import { Cassette } from './components/Cassette';
 import { MarkdownViewer } from './components/MarkdownViewer';
-import { AudioTrack, DocumentFile, AppState, ACCESS_CODE } from './types';
+import { AdminPanel } from './components/AdminPanel';
+import { AppState, GameFile, User, INITIAL_USERS } from './types';
 
 function App() {
-  // --- State ---
-  const [appState, setAppState] = useState<AppState>(AppState.LOGIN);
-  const [accessCode, setAccessCode] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  // File Data
-  const [tracks, setTracks] = useState<AudioTrack[]>([]);
-  const [docs, setDocs] = useState<DocumentFile[]>([]);
+  // --- Global State ---
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const [files, setFiles] = useState<GameFile[]>([]);
   
-  // Playback State
+  // --- Session State ---
+  const [appState, setAppState] = useState<AppState>(AppState.LOGIN);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [selectedUserLoginId, setSelectedUserLoginId] = useState<string>('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  // --- View State ---
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(-1);
+  const [currentDoc, setCurrentDoc] = useState<GameFile | null>(null);
+
+  // --- Playback State ---
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0); // 0 to 100
+  const [progress, setProgress] = useState(0); 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // --- Helpers ---
+  // --- Computed Data ---
+  
+  // Filter files the current user can see
+  const userFiles = files.filter(f => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    return f.allowedUserIds.includes(currentUser.id);
+  });
+
+  // Get unique campaigns available to the user
+  const availableCampaigns = Array.from(new Set(userFiles.map(f => f.campaign)));
+
+  // Get folders for selected campaign
+  const campaignFiles = selectedCampaign 
+    ? userFiles.filter(f => f.campaign === selectedCampaign)
+    : [];
+
+  // Group campaign files by folder
+  const folders = campaignFiles.reduce((acc, file) => {
+    if (!acc[file.folder]) acc[file.folder] = [];
+    acc[file.folder].push(file);
+    return acc;
+  }, {} as Record<string, GameFile[]>);
+
+  // Sorted list of tracks for the player (from current campaign)
+  const tracks = campaignFiles.filter(f => f.type === 'audio').sort((a, b) => a.name.localeCompare(b.name));
+  
   const currentTrack = currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null;
-
-  const formatTime = (time: number) => {
-    if (isNaN(time)) return "0:00";
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const cleanFileName = (name: string) => {
-    return name.replace(/\.(md|markdown)$/i, '');
-  };
 
   // --- Handlers ---
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (accessCode === ACCESS_CODE) {
-      setAppState(AppState.PLAYER);
-    } else {
-      setLoginError('Invalid Access Code');
-      setTimeout(() => setLoginError(''), 2000);
+    const user = users.find(u => u.id === selectedUserLoginId);
+    
+    if (user) {
+      if (user.role === 'admin') {
+        if (password === '535846') {
+          setCurrentUser(user);
+          setAppState(AppState.CAMPAIGN_SELECT);
+          setPassword('');
+          setLoginError('');
+        } else {
+          setLoginError('Senha de Administrador Incorreta');
+          setTimeout(() => setLoginError(''), 3000);
+        }
+      } else {
+        setCurrentUser(user);
+        setAppState(AppState.CAMPAIGN_SELECT);
+      }
     }
   };
 
   const handleLogout = () => {
-    // Reset everything
     setAppState(AppState.LOGIN);
-    setAccessCode('');
-    setTracks([]);
-    setDocs([]);
+    setCurrentUser(null);
+    setSelectedCampaign(null);
     setCurrentTrackIndex(-1);
     setIsPlaying(false);
     setProgress(0);
-  };
-
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.endsWith('.mag') && !file.name.endsWith('.zip')) {
-      alert("Please upload a .mag or .zip file");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const packageData = await processMagFile(file);
-      setTracks(packageData.tracks);
-      setDocs(packageData.documents);
-      
-      if (packageData.tracks.length > 0) {
-        setCurrentTrackIndex(0);
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Error processing file. Is it a valid .mag archive?");
-    } finally {
-      setIsLoading(false);
+    if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
     }
   };
+
+  // --- Admin Handlers ---
+
+  const addUser = (name: string) => {
+    const newUser: User = {
+      id: crypto.randomUUID(),
+      name,
+      role: 'player'
+    };
+    setUsers([...users, newUser]);
+  };
+
+  const addFile = (file: GameFile) => {
+    setFiles([...files, file]);
+  };
+
+  const updatePermissions = (fileId: string, userIds: string[]) => {
+    setFiles(files.map(f => f.id === fileId ? { ...f, allowedUserIds: userIds } : f));
+  };
+
+  // --- Playback Handlers ---
 
   const togglePlay = () => {
     if (!audioRef.current || !currentTrack) return;
-    
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
+    if (isPlaying) audioRef.current.pause();
+    else audioRef.current.play();
     setIsPlaying(!isPlaying);
   };
 
@@ -126,47 +154,47 @@ function App() {
     }
   };
 
-  const changeTrack = (index: number) => {
-    setCurrentTrackIndex(index);
-    setIsPlaying(true); // Auto-play on track switch
-    // Note: The useEffect on currentTrackIndex will handle loading the source
+  const changeTrack = (fileId: string) => {
+    const index = tracks.findIndex(t => t.id === fileId);
+    if (index !== -1) {
+      setCurrentTrackIndex(index);
+      setIsPlaying(true);
+    }
   };
 
   // --- Effects ---
 
-  // Handle Track Change
   useEffect(() => {
     if (audioRef.current && currentTrack) {
-      audioRef.current.src = currentTrack.url;
+      audioRef.current.src = currentTrack.content; // Content is URL for audio
       audioRef.current.load();
       if (isPlaying) {
         audioRef.current.play().catch(e => console.warn("Autoplay blocked", e));
       }
     }
-  }, [currentTrackIndex, currentTrack]); // Removed isPlaying to avoid loop re-triggering
+  }, [currentTrackIndex, currentTrack]);
 
-  // Handle Time Update
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       const curr = audioRef.current.currentTime;
       const dur = audioRef.current.duration;
       setCurrentTime(curr);
       setDuration(dur);
-      if (dur > 0) {
-        setProgress((curr / dur) * 100);
-      }
+      if (dur > 0) setProgress((curr / dur) * 100);
     }
   };
 
-  const handleAudioEnded = () => {
-    setIsPlaying(false);
-    // Optional: Auto-play next track
-    if (currentTrackIndex < tracks.length - 1) {
-      changeTrack(currentTrackIndex + 1);
-    }
+  const formatTime = (time: number) => {
+    if (isNaN(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   // --- Views ---
+  
+  const selectedUser = users.find(u => u.id === selectedUserLoginId);
+  const isAdminSelected = selectedUser?.role === 'admin';
 
   const renderLogin = () => (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-mag-mid to-mag-dark p-4">
@@ -174,331 +202,286 @@ function App() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-serif text-white mb-2 tracking-wider">MAG PLAYER</h1>
           <div className="h-1 w-24 bg-mag-accent mx-auto rounded-full"></div>
-          <p className="text-mag-cyan mt-4 text-sm uppercase tracking-widest opacity-80">Restricted Access System</p>
+          <p className="text-mag-cyan mt-4 text-sm uppercase tracking-widest opacity-80">Identificação Requerida</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-mag-text text-xs uppercase tracking-wider font-bold ml-1">Access Code</label>
-            <input
-              type="password"
-              value={accessCode}
-              onChange={(e) => setAccessCode(e.target.value)}
-              className="w-full bg-mag-dark/80 border border-mag-light text-center text-xl text-white py-3 rounded focus:outline-none focus:border-mag-cyan focus:ring-1 focus:ring-mag-cyan transition-all placeholder-mag-light/30 font-mono tracking-widest"
-              placeholder="XXX/XXXX-00.00"
-            />
+            <label className="text-mag-text text-xs uppercase tracking-wider font-bold ml-1">Selecione o Usuário</label>
+            <div className="relative">
+                <select
+                    value={selectedUserLoginId}
+                    onChange={(e) => {
+                      setSelectedUserLoginId(e.target.value);
+                      setPassword('');
+                      setLoginError('');
+                    }}
+                    className="w-full bg-mag-dark/80 border border-mag-light text-white py-3 px-4 rounded appearance-none focus:outline-none focus:border-mag-cyan focus:ring-1 focus:ring-mag-cyan transition-all font-mono tracking-wide cursor-pointer"
+                >
+                    <option value="" disabled>-- Selecione --</option>
+                    {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-mag-cyan">
+                    <ChevronLeft className="-rotate-90 w-4 h-4" />
+                </div>
+            </div>
           </div>
           
-          {loginError && (
-            <div className="text-mag-accent text-center text-sm bg-mag-accent/10 py-2 rounded animate-pulse">
-              {loginError}
+          {isAdminSelected && (
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+              <label className="text-mag-text text-xs uppercase tracking-wider font-bold ml-1 text-mag-accent">Senha de Mestre</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-mag-dark/80 border border-mag-accent/50 text-center text-xl text-white py-3 rounded focus:outline-none focus:border-mag-accent focus:ring-1 focus:ring-mag-accent transition-all placeholder-mag-light/30 font-mono tracking-widest"
+                placeholder="******"
+              />
             </div>
           )}
 
+          {loginError && (
+            <div className="text-mag-accent text-center text-sm bg-mag-accent/10 py-2 rounded animate-pulse border border-mag-accent/20">
+              {loginError}
+            </div>
+          )}
+          
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-mag-light to-mag-mid hover:from-mag-cyan hover:to-mag-light text-white font-bold py-3 rounded transition-all duration-300 transform hover:scale-[1.02] shadow-lg border border-white/10 uppercase tracking-widest"
+            disabled={!selectedUserLoginId || (isAdminSelected && !password)}
+            className="w-full bg-gradient-to-r from-mag-light to-mag-mid hover:from-mag-cyan hover:to-mag-light text-white font-bold py-3 rounded transition-all duration-300 transform hover:scale-[1.02] shadow-lg border border-white/10 uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Authenticate
+            Entrar
           </button>
         </form>
       </div>
     </div>
   );
 
-  const renderPlayer = () => (
-    <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in duration-700 pb-10 md:pb-0">
-      
-      {/* Cassette Visualization */}
-      <div className="relative">
+  const renderCampaignSelect = () => (
+    <div className="max-w-6xl mx-auto pt-12 animate-in fade-in duration-500">
+        <div className="flex justify-between items-end mb-10 border-b border-white/10 pb-4">
+            <div>
+                <h2 className="text-3xl font-serif text-white mb-2">Campanhas Disponíveis</h2>
+                <p className="text-mag-text/60">Selecione uma pasta para acessar os arquivos.</p>
+            </div>
+            <div className="flex gap-4">
+                {currentUser?.role === 'admin' && (
+                    <button 
+                        onClick={() => setAppState(AppState.ADMIN)}
+                        className="flex items-center gap-2 bg-mag-light/20 hover:bg-mag-accent/20 border border-mag-light/50 px-4 py-2 rounded text-mag-cyan hover:text-white transition-all uppercase text-xs tracking-wider"
+                    >
+                        <Settings size={16} /> Painel Mestre
+                    </button>
+                )}
+            </div>
+        </div>
+
+        {availableCampaigns.length === 0 ? (
+             <div className="text-center py-20 bg-mag-panel/30 rounded-lg border border-white/5 border-dashed">
+                <Folder size={48} className="mx-auto text-mag-text/20 mb-4" />
+                <p className="text-mag-text/40">Nenhuma campanha disponível para seu usuário.</p>
+                {currentUser?.role === 'admin' && (
+                    <p className="text-xs text-mag-accent mt-2">Acesse o Painel Mestre para criar arquivos.</p>
+                )}
+             </div>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {availableCampaigns.map(camp => (
+                    <button
+                        key={camp}
+                        onClick={() => {
+                            setSelectedCampaign(camp);
+                            setAppState(AppState.BROWSER);
+                        }}
+                        className="group relative h-48 bg-mag-panel/60 border border-white/5 hover:border-mag-cyan/50 rounded-xl p-6 text-left transition-all hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_rgba(108,207,246,0.2)] overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <Folder size={100} />
+                        </div>
+                        <div className="relative z-10 h-full flex flex-col justify-between">
+                            <div>
+                                <div className="text-xs font-mono text-mag-accent mb-2">CONFIDENTIAL</div>
+                                <h3 className="text-2xl font-serif text-white group-hover:text-mag-cyan transition-colors">{camp}</h3>
+                            </div>
+                            <div className="flex items-center text-xs text-mag-text/60 group-hover:text-mag-text transition-colors">
+                                <span>Abrir Arquivos</span>
+                                <ChevronRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                            </div>
+                        </div>
+                    </button>
+                ))}
+            </div>
+        )}
+    </div>
+  );
+
+  const renderPlayerControls = () => (
+    <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in duration-700">
         <Cassette 
-          isPlaying={isPlaying} 
-          progress={duration > 0 ? currentTime / duration : 0} 
-          title={currentTrack?.name || "NO TAPE LOADED"} 
+            isPlaying={isPlaying} 
+            progress={duration > 0 ? currentTime / duration : 0} 
+            title={currentTrack?.name || "AGUARDANDO..."} 
         />
-      </div>
-
-      {/* Main Controls Panel */}
-      <div className="bg-mag-panel/60 backdrop-blur-md rounded-2xl p-6 border border-white/5 shadow-2xl">
         
-        {/* Progress Bar */}
-        <div className="mb-8 md:mb-6 flex items-center space-x-4">
-          <span className="text-xs font-mono text-mag-cyan w-10 text-right shrink-0">{formatTime(currentTime)}</span>
-          <div className="relative flex-1 h-4 group">
-            <div className="absolute top-1/2 -translate-y-1/2 w-full h-1 bg-mag-dark rounded-full overflow-hidden">
-               <div 
-                  className="h-full bg-mag-accent transition-all duration-100 ease-out"
-                  style={{ width: `${progress}%` }}
-               />
+        <div className="bg-mag-panel/60 backdrop-blur-md rounded-2xl p-6 border border-white/5 shadow-2xl">
+            <div className="mb-4 flex items-center space-x-4">
+                <span className="text-xs font-mono text-mag-cyan w-10 text-right shrink-0">{formatTime(currentTime)}</span>
+                <div className="relative flex-1 h-4 group">
+                    <div className="absolute top-1/2 -translate-y-1/2 w-full h-1 bg-mag-dark rounded-full overflow-hidden">
+                        <div className="h-full bg-mag-accent transition-all duration-100 ease-out" style={{ width: `${progress}%` }} />
+                    </div>
+                    <input type="range" min="0" max="100" step="0.1" value={progress} onChange={handleSeek} disabled={!currentTrack} className="absolute top-0 w-full h-full opacity-0 cursor-pointer" />
+                </div>
+                <span className="text-xs font-mono text-mag-cyan w-10 shrink-0">{formatTime(duration)}</span>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="0.1"
-              value={progress}
-              onChange={handleSeek}
-              disabled={!currentTrack}
-              className="absolute top-0 w-full h-full opacity-0 cursor-pointer"
-            />
-             {/* Thumb indicator for custom styling look */}
-             <div 
-                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow pointer-events-none transition-all duration-100 ease-out"
-                style={{ left: `${progress}%`, marginLeft: '-6px' }}
-             />
-          </div>
-          <span className="text-xs font-mono text-mag-cyan w-10 shrink-0">{formatTime(duration)}</span>
-        </div>
 
-        {/* Buttons Row - RESPONSIVE LAYOUT */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6 md:gap-0">
-          
-          {/* Group 1: File Actions (Order 3 on Mobile = Bottom) */}
-          <div className="flex space-x-4 md:space-x-2 order-3 md:order-1 w-full md:w-auto justify-center md:justify-start border-t md:border-t-0 border-white/5 pt-6 md:pt-0">
-            {/* File Upload Hidden Input */}
-            <input 
-              type="file" 
-              id="mag-upload" 
-              className="hidden" 
-              accept=".mag,.zip" 
-              onChange={handleFileUpload} 
-            />
-            <label 
-              htmlFor="mag-upload"
-              className={`p-3 rounded-full bg-mag-light/20 border border-mag-light/50 text-mag-text hover:bg-mag-cyan hover:text-mag-dark transition-all cursor-pointer ${isLoading ? 'animate-pulse pointer-events-none' : ''}`}
-              title="Load Tape (.mag)"
-            >
-              {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <FolderOpen className="w-6 h-6" />}
-            </label>
-
-            <button 
-              onClick={() => setAppState(AppState.BROWSER)}
-              className="p-3 rounded-full bg-mag-light/20 border border-mag-light/50 text-mag-text hover:bg-mag-cyan hover:text-mag-dark transition-all"
-              title="View Archives"
-              disabled={tracks.length === 0 && docs.length === 0}
-            >
-              <FileText className="w-6 h-6" />
-            </button>
-          </div>
-
-          {/* Group 2: Playback Controls (Order 1 on Mobile = Top) */}
-          <div className="flex items-center space-x-8 md:space-x-6 order-1 md:order-2 w-full justify-center md:w-auto">
-            <button 
-              onClick={() => skip(-10)}
-              className="text-mag-text hover:text-mag-cyan transition-colors disabled:opacity-30 p-2"
-              disabled={!currentTrack}
-            >
-              <Rewind className="w-8 h-8" />
-            </button>
-
-            <button 
-              onClick={togglePlay}
-              disabled={!currentTrack}
-              className="w-20 h-20 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-mag-accent to-red-800 flex items-center justify-center text-white shadow-[0_0_20px_rgba(236,29,37,0.4)] hover:shadow-[0_0_30px_rgba(236,29,37,0.6)] hover:scale-105 transition-all disabled:opacity-50 disabled:grayscale"
-            >
-              {isPlaying ? <Pause className="w-10 h-10 md:w-8 md:h-8 fill-current" /> : <Play className="w-10 h-10 md:w-8 md:h-8 fill-current pl-1" />}
-            </button>
-
-            <button 
-              onClick={() => skip(10)}
-              className="text-mag-text hover:text-mag-cyan transition-colors disabled:opacity-30 p-2"
-              disabled={!currentTrack}
-            >
-              <FastForward className="w-8 h-8" />
-            </button>
-          </div>
-
-          {/* Group 3: Track Select & Logout (Order 2 on Mobile = Middle) */}
-          <div className="flex space-x-3 order-2 md:order-3 w-full md:w-auto justify-center md:justify-end">
-            <div className="relative group flex-1 md:flex-none max-w-[240px] md:max-w-none">
-                <select 
-                    className="appearance-none bg-mag-dark text-mag-text pl-10 pr-4 py-3 rounded-full border border-mag-light/50 focus:outline-none focus:border-mag-cyan w-full md:w-48 truncate cursor-pointer hover:bg-mag-light/20 text-sm"
-                    value={currentTrackIndex}
-                    onChange={(e) => changeTrack(Number(e.target.value))}
-                    disabled={tracks.length === 0}
-                >
-                    {tracks.map((t, idx) => (
-                        <option key={t.id} value={idx}>{t.name}</option>
-                    ))}
-                    {tracks.length === 0 && <option value={-1}>No Audio</option>}
-                </select>
-                <Music className="w-5 h-5 text-mag-cyan absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <div className="flex justify-center items-center gap-8">
+                <button onClick={() => skip(-10)} disabled={!currentTrack} className="text-mag-text hover:text-mag-cyan disabled:opacity-30 p-2"><Rewind className="w-8 h-8" /></button>
+                <button onClick={togglePlay} disabled={!currentTrack} className="w-16 h-16 rounded-full bg-gradient-to-br from-mag-accent to-red-800 flex items-center justify-center text-white hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:grayscale">
+                    {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current pl-1" />}
+                </button>
+                <button onClick={() => skip(10)} disabled={!currentTrack} className="text-mag-text hover:text-mag-cyan disabled:opacity-30 p-2"><FastForward className="w-8 h-8" /></button>
             </div>
-            
-            <button 
-              onClick={handleLogout}
-              className="p-3 rounded-full bg-mag-light/10 border border-mag-light/30 text-mag-text/70 hover:bg-red-900/50 hover:text-red-200 hover:border-red-800 transition-all shrink-0"
-              title="Eject / Logout"
-            >
-              <LogOut className="w-6 h-6" />
-            </button>
-          </div>
-
         </div>
-      </div>
     </div>
   );
 
   const renderBrowser = () => (
-    <div className="h-full flex flex-col md:flex-row gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 md:overflow-hidden overflow-y-auto custom-scrollbar">
-      
-      {/* Mini Player / Sidebar */}
-      <div className="w-full md:w-[350px] shrink-0 flex flex-col gap-4 md:overflow-y-auto custom-scrollbar pr-2 pb-4">
-        <button 
-          onClick={() => setAppState(AppState.PLAYER)}
-          className="flex items-center text-mag-cyan hover:text-white transition-colors self-start mb-2 sticky top-0 bg-mag-dark/80 backdrop-blur z-10 w-full py-2"
-        >
-          <ChevronLeft className="w-5 h-5 mr-1" /> Back to Player
-        </button>
+    <div className="h-full flex flex-col md:flex-row gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
+        {/* Left: Folder Structure */}
+        <div className="w-full md:w-[350px] shrink-0 flex flex-col gap-4 bg-black/20 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar">
+            <button 
+                onClick={() => {
+                    setAppState(AppState.CAMPAIGN_SELECT);
+                    setCurrentDoc(null);
+                }}
+                className="flex items-center text-mag-cyan hover:text-white transition-colors mb-2 text-sm uppercase tracking-wider font-bold"
+            >
+                <ChevronLeft className="w-4 h-4 mr-1" /> Voltar: {selectedCampaign}
+            </button>
 
-        {/* Mini Cassette Visualization */}
-        <div className="w-full max-w-[280px] md:max-w-none mx-auto aspect-[3/2] bg-mag-dark/50 rounded-xl p-2 border border-white/5 shadow-lg relative">
-             <Cassette 
-                isPlaying={isPlaying} 
-                progress={duration > 0 ? currentTime / duration : 0} 
-                title={currentTrack?.name || "NO TAPE"} 
-            />
-        </div>
-
-        {/* Mini Controls */}
-        <div className="bg-mag-panel/80 backdrop-blur border border-white/10 rounded-xl p-4 shadow-lg">
-             <div className="flex items-center justify-between gap-2">
-                <button onClick={() => skip(-10)} disabled={!currentTrack} className="p-2 text-mag-text hover:text-mag-cyan disabled:opacity-30"><Rewind size={20}/></button>
-                <button 
-                  onClick={togglePlay} 
-                  disabled={!currentTrack} 
-                  className="w-12 h-12 rounded-full bg-gradient-to-br from-mag-accent to-red-800 text-white flex items-center justify-center hover:scale-105 transition shadow-lg disabled:opacity-50 disabled:grayscale"
-                >
-                    {isPlaying ? <Pause size={20} className="fill-current" /> : <Play size={20} className="pl-0.5 fill-current" />}
-                </button>
-                <button onClick={() => skip(10)} disabled={!currentTrack} className="p-2 text-mag-text hover:text-mag-cyan disabled:opacity-30"><FastForward size={20}/></button>
-             </div>
-             
-             {/* Progress Bar Mini */}
-             <div className="mt-3 flex items-center space-x-2">
-                <span className="text-[10px] font-mono text-mag-cyan">{formatTime(currentTime)}</span>
-                <div className="relative flex-1 h-2 bg-mag-dark rounded-full overflow-hidden">
-                    <div className="h-full bg-mag-accent" style={{ width: `${progress}%` }}></div>
-                </div>
-                <span className="text-[10px] font-mono text-mag-cyan">{formatTime(duration)}</span>
-             </div>
-             
-             {currentTrack && (
-                <div className="text-center mt-2 text-xs text-mag-cyan font-mono truncate">
-                    {currentTrack.name}
-                </div>
-            )}
-        </div>
-
-        {/* Track List */}
-        <div className="bg-mag-panel/80 backdrop-blur border border-white/10 rounded-xl p-4 shadow-lg flex-1 min-h-[200px] flex flex-col">
-          <h3 className="text-sm font-serif text-mag-text mb-3 border-b border-white/10 pb-2 flex items-center uppercase tracking-wider">
-            <Music className="w-3 h-3 mr-2 text-mag-accent" /> Tracks
-          </h3>
-          <div className="flex-1 space-y-1">
-            {tracks.length === 0 ? (
-                <p className="text-gray-500 italic text-xs text-center py-4">No audio tracks found.</p>
-            ) : (
-                tracks.map((track, idx) => (
-                    <button
-                        key={track.id}
-                        onClick={() => changeTrack(idx)}
-                        className={`w-full text-left p-2 rounded text-xs transition-all flex items-center justify-between group ${
-                            currentTrackIndex === idx 
-                            ? 'bg-mag-accent/20 border border-mag-accent/50 text-white' 
-                            : 'hover:bg-mag-light/30 text-mag-text/70'
-                        }`}
-                    >
-                        <span className="truncate flex-1">{track.name}</span>
-                        {currentTrackIndex === idx && isPlaying && (
-                            <div className="w-2 h-2 rounded-full bg-mag-accent animate-pulse ml-2"></div>
-                        )}
-                    </button>
-                ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Document Viewer (Right Column) */}
-      <div className="flex-1 bg-mag-panel/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl flex flex-col md:overflow-hidden h-auto md:h-full min-h-[500px]">
-        <div className="p-4 border-b border-white/10 flex items-center bg-black/20 sticky top-0 z-10 backdrop-blur-md">
-             <FileText className="w-5 h-5 mr-2 text-mag-cyan" /> 
-             <h3 className="text-lg font-serif text-mag-text">Documentation</h3>
-        </div>
-        
-        <div className="flex-1 md:overflow-y-auto overflow-visible custom-scrollbar p-6 md:p-10 bg-gradient-to-br from-mag-panel/50 to-black/40">
-            {docs.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-mag-text/30 py-20">
-                    <FileText size={64} className="mb-6 opacity-20" />
-                    <p className="font-serif text-lg">No documentation files found.</p>
-                </div>
-            ) : (
-                <div className="space-y-16 max-w-4xl mx-auto">
-                    {docs.map((doc) => (
-                        <div key={doc.id} className="animate-in fade-in slide-in-from-bottom-2 duration-700">
-                            <div className="mb-8 pb-4 border-b border-mag-light/30 flex items-baseline justify-between">
-                                <h2 className="text-3xl font-serif text-mag-cyan tracking-wide break-words">
-                                    {cleanFileName(doc.name)}
-                                </h2>
-                                <span className="text-xs font-mono text-mag-text/40 border border-mag-text/20 px-2 py-0.5 rounded shrink-0 ml-2">
-                                    MD
-                                </span>
-                            </div>
-                            <div className="bg-black/20 p-4 md:p-8 rounded-lg border border-white/5 shadow-inner overflow-x-hidden">
-                                <MarkdownViewer content={doc.content} />
-                            </div>
-                        </div>
-                    ))}
-                    
-                    {/* Footer spacer */}
-                    <div className="h-12 flex items-center justify-center text-mag-text/20 text-xs font-mono pt-8 border-t border-white/5">
-                        END OF DOCUMENT
+            {Object.entries(folders).map(([folderName, files]) => (
+                <div key={folderName} className="mb-4">
+                    <h4 className="text-xs font-serif text-mag-text/50 uppercase border-b border-white/10 pb-1 mb-2 flex items-center">
+                        <Folder className="w-3 h-3 mr-2" /> {folderName}
+                    </h4>
+                    <div className="space-y-1">
+                        {files.map(file => (
+                            <button
+                                key={file.id}
+                                onClick={() => {
+                                    if (file.type === 'audio') {
+                                        setAppState(AppState.PLAYER);
+                                        changeTrack(file.id);
+                                    } else {
+                                        setCurrentDoc(file);
+                                    }
+                                }}
+                                className={`w-full text-left p-2 rounded text-xs transition-all flex items-center gap-2 group ${
+                                    (currentTrack?.id === file.id && isPlaying) || (currentDoc?.id === file.id)
+                                    ? 'bg-mag-accent/20 border border-mag-accent/50 text-white' 
+                                    : 'hover:bg-mag-light/30 text-mag-text/80'
+                                }`}
+                            >
+                                {file.type === 'audio' ? <Music size={14} /> : <FileText size={14} />}
+                                <span className="truncate flex-1">{file.name}</span>
+                                {file.type === 'audio' && currentTrack?.id === file.id && isPlaying && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-mag-accent animate-pulse"></div>
+                                )}
+                            </button>
+                        ))}
                     </div>
                 </div>
+            ))}
+        </div>
+
+        {/* Right: Content Viewer (Doc or Player Placeholder) */}
+        <div className="flex-1 bg-mag-panel/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
+            {currentDoc ? (
+                 <div className="flex flex-col h-full">
+                    <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20 sticky top-0 z-10 backdrop-blur-md">
+                        <div className="flex items-center">
+                            <FileText className="w-5 h-5 mr-2 text-mag-cyan" /> 
+                            <h3 className="text-lg font-serif text-mag-text truncate max-w-[300px]">{currentDoc.name}</h3>
+                        </div>
+                        <button onClick={() => setCurrentDoc(null)} className="text-xs hover:text-white text-mag-text/50">FECHAR</button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
+                         <MarkdownViewer content={currentDoc.content} />
+                    </div>
+                 </div>
+            ) : appState === AppState.PLAYER ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
+                    <button 
+                        onClick={() => setAppState(AppState.BROWSER)}
+                        className="absolute top-4 left-4 flex items-center text-xs text-mag-cyan hover:text-white md:hidden"
+                    >
+                        <ChevronLeft size={14} /> Arquivos
+                    </button>
+                    {renderPlayerControls()}
+                </div>
+            ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-mag-text/30 p-8 text-center">
+                    <FolderOpen size={64} className="mb-4 opacity-20" />
+                    <p className="font-serif text-lg">Selecione um arquivo para visualizar</p>
+                    <p className="text-xs mt-2 opacity-50">Áudios abrirão o player. Documentos abrirão aqui.</p>
+                </div>
             )}
         </div>
-      </div>
     </div>
   );
 
+  // --- Main Render ---
+
+  if (appState === AppState.ADMIN && currentUser?.role === 'admin') {
+      return (
+          <AdminPanel 
+            users={users} 
+            files={files} 
+            onAddUser={addUser} 
+            onUploadFile={addFile} 
+            onUpdatePermissions={updatePermissions}
+            onExit={() => setAppState(AppState.CAMPAIGN_SELECT)}
+          />
+      );
+  }
+
   return (
-    <div className="min-h-screen text-mag-text font-sans selection:bg-mag-accent selection:text-white relative overflow-hidden">
+    <div className="min-h-screen text-mag-text font-sans selection:bg-mag-accent selection:text-white relative overflow-hidden bg-mag-dark">
       {/* Background Ambience */}
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#002838] via-[#001010] to-[#000000] -z-20"></div>
       <div className="fixed inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-30 -z-10 mix-blend-overlay"></div>
 
-      {/* Audio Element */}
-      <audio 
-        ref={audioRef}
-        onTimeUpdate={handleTimeUpdate}
-        onEnded={handleAudioEnded}
-        onError={() => alert("Error playing audio track.")}
-      />
+      <audio ref={audioRef} onTimeUpdate={handleTimeUpdate} onEnded={() => setIsPlaying(false)} onError={() => alert("Erro na reprodução.")} />
 
       <div className="container mx-auto px-4 py-6 h-screen flex flex-col">
         {appState === AppState.LOGIN ? renderLogin() : (
            <>
               <header className="flex justify-between items-center mb-6 shrink-0 animate-in fade-in slide-in-from-top-4 duration-700">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setAppState(AppState.CAMPAIGN_SELECT)}>
                    <div className="w-3 h-10 bg-mag-accent rounded-sm shadow-[0_0_15px_rgba(236,29,37,0.5)]"></div>
                    <div>
                        <h1 className="text-2xl font-serif font-bold tracking-widest text-white leading-none">MAG</h1>
                        <span className="text-mag-cyan text-xs tracking-[0.3em] uppercase block">Audio System</span>
                    </div>
                 </div>
-                <div className="text-right hidden md:block">
-                   <div className="text-xs text-mag-text/50 font-mono">FIRMWARE V2.4</div>
-                   <div className={`text-xs font-mono font-bold flex items-center justify-end ${isPlaying ? 'text-green-500' : 'text-yellow-500'}`}>
-                       <div className={`w-2 h-2 rounded-full mr-2 ${isPlaying ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
-                       {isPlaying ? 'PLAYING' : 'STANDBY'}
-                   </div>
+                <div className="flex items-center gap-4">
+                    <div className="text-right hidden md:block">
+                        <div className="text-xs text-mag-text/50 font-mono">USUÁRIO</div>
+                        <div className="text-sm font-bold text-white uppercase">{currentUser?.name}</div>
+                    </div>
+                    <button onClick={handleLogout} title="Sair" className="p-2 hover:bg-white/10 rounded-full text-mag-text/70 hover:text-white transition-colors">
+                        <LogOut size={20} />
+                    </button>
                 </div>
               </header>
 
-              <main className="flex-1 min-h-0 flex flex-col justify-center relative">
-                 {appState === AppState.PLAYER && renderPlayer()}
-                 {appState === AppState.BROWSER && renderBrowser()}
+              <main className="flex-1 min-h-0 flex flex-col relative">
+                 {appState === AppState.CAMPAIGN_SELECT && renderCampaignSelect()}
+                 {(appState === AppState.BROWSER || appState === AppState.PLAYER) && renderBrowser()}
               </main>
 
               <footer className="mt-4 shrink-0 text-center text-mag-text/30 text-xs font-mono pb-2">
