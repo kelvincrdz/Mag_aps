@@ -1,4 +1,4 @@
-import { list, put } from "@vercel/blob";
+import { supabase } from "../lib/supabase";
 
 interface FileRecord {
   id: string;
@@ -39,18 +39,18 @@ export default async function handler(req: Request): Promise<Response> {
 
     // Try to read existing index.json
     let current: FileRecord[] = [];
-    const existing = await list({
-      prefix: indexPath,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-    const found = (existing.blobs as any[]).find(
-      (b: any) => b.pathname === indexPath
-    );
-    if (found) {
-      const resp = await fetch(found.url);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("mag-files").getPublicUrl(indexPath);
+
+    try {
+      const resp = await fetch(publicUrl);
       if (resp.ok) {
         current = await resp.json();
       }
+    } catch (e) {
+      // Index file might not exist yet, start with empty array
+      console.log("No existing index, creating new one");
     }
 
     // Merge or add
@@ -58,12 +58,21 @@ export default async function handler(req: Request): Promise<Response> {
     if (idx >= 0) current[idx] = record;
     else current.push(record);
 
-    // Write back
-    await put(indexPath, JSON.stringify(current, null, 2), {
-      access: "public",
-      contentType: "application/json",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
+    // Write back to Supabase Storage
+    const indexBlob = new Blob([JSON.stringify(current, null, 2)], {
+      type: "application/json",
     });
+
+    const { error } = await supabase.storage
+      .from("mag-files")
+      .upload(indexPath, indexBlob, {
+        contentType: "application/json",
+        upsert: true,
+      });
+
+    if (error) {
+      throw new Error(`Failed to save index: ${error.message}`);
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,

@@ -1,4 +1,4 @@
-import { list } from "@vercel/blob";
+import { supabase } from "../lib/supabase";
 
 interface FileRecord {
   id: string;
@@ -28,31 +28,46 @@ export default async function handler(req: Request): Promise<Response> {
       );
     } else {
       // Discover all campaign indices under campaigns/*/index.json
-      const all = await list({
-        prefix: "campaigns/",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      const indexCandidates = (all.blobs as any[]).filter((b: any) =>
-        b.pathname.endsWith("/index.json")
-      );
-      for (const b of indexCandidates) indexes.push(b.pathname);
+      const { data: files } = await supabase.storage
+        .from("mag-files")
+        .list("campaigns", {
+          limit: 1000,
+          offset: 0,
+        });
+
+      if (files) {
+        // List subdirectories (campaigns)
+        for (const folder of files) {
+          const indexPath = `campaigns/${folder.name}/index.json`;
+          const { data: indexFile } = await supabase.storage
+            .from("mag-files")
+            .list(`campaigns/${folder.name}`, {
+              limit: 1,
+              search: "index.json",
+            });
+
+          if (indexFile && indexFile.length > 0) {
+            indexes.push(indexPath);
+          }
+        }
+      }
     }
 
     const results: FileRecord[] = [];
     for (const path of indexes) {
-      const blobs = await list({
-        prefix: path,
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      const found = (blobs.blobs as any[]).find(
-        (b: any) => b.pathname === path
-      );
-      if (found) {
-        const resp = await fetch(found.url);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("mag-files").getPublicUrl(path);
+
+      try {
+        const resp = await fetch(publicUrl);
         if (resp.ok) {
           const arr: FileRecord[] = await resp.json();
           results.push(...arr);
         }
+      } catch (e) {
+        // Index file might not exist yet
+        console.warn(`Could not fetch ${path}:`, e);
       }
     }
 

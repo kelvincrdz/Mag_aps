@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { supabase } from "../lib/supabase";
 
 function slugify(input: string) {
   return input
@@ -37,15 +37,25 @@ export default async function handler(req: Request): Promise<Response> {
     const ts = Date.now();
     const pathname = `campaigns/${safeCampaign}/${safeFolder}/${ts}-${safeName}`;
 
-    const blob = await put(pathname, fileBlob, {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      contentType,
-      // cacheControlMaxAge: 2592000, // 30 days (optional)
-    });
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from("mag-files")
+      .upload(pathname, fileBlob, {
+        contentType,
+        upsert: false,
+      });
+
+    if (error) {
+      throw new Error(`Supabase upload error: ${error.message}`);
+    }
+
+    // Get public URL
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("mag-files").getPublicUrl(pathname);
 
     return new Response(
-      JSON.stringify({ url: blob.url, pathname: blob.pathname }),
+      JSON.stringify({ url: publicUrl, pathname: pathname }),
       {
         status: 200,
         headers: { "content-type": "application/json" },
