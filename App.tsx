@@ -406,19 +406,19 @@ function App() {
   );
 
   const renderCampaignSelect = () => (
-    <div className="max-w-6xl mx-auto pt-12 animate-in fade-in duration-500">
-      <div className="flex justify-between items-end mb-10 border-b border-white/10 pb-4">
+    <div className="max-w-6xl mx-auto pt-6 md:pt-12 px-4 animate-in fade-in duration-500 overflow-y-auto custom-scrollbar h-full">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 md:mb-10 border-b border-white/10 pb-4 gap-4">
         <div>
           <h2 className="text-3xl font-serif text-white mb-2">Campanhas Disponíveis</h2>
           <p className="text-mag-text/60">Selecione uma pasta para acessar os arquivos.</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-2 md:gap-4 w-full md:w-auto">
           {currentUser?.role === 'admin' && (
             <button
               onClick={() => setAppState(AppState.ADMIN)}
-              className="flex items-center gap-2 bg-mag-light/20 hover:bg-mag-accent/20 border border-mag-light/50 px-4 py-2 rounded text-mag-cyan hover:text-white transition-all uppercase text-xs tracking-wider"
+              className="flex items-center gap-2 bg-mag-light/20 hover:bg-mag-accent/20 border border-mag-light/50 px-3 md:px-4 py-2 rounded text-mag-cyan hover:text-white transition-all uppercase text-xs tracking-wider flex-1 md:flex-none justify-center"
             >
-              <Settings size={16} /> Painel Mestre
+              <Settings size={16} /> <span className="hidden sm:inline">Painel Mestre</span><span className="sm:hidden">Mestre</span>
             </button>
           )}
         </div>
@@ -433,7 +433,7 @@ function App() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 pb-6">
           {availableCampaigns.map(camp => (
             <button
               key={camp}
@@ -513,9 +513,9 @@ function App() {
   );
 
   const renderBrowser = () => (
-    <div className="h-full flex flex-col md:flex-row gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
+    <div className="h-full flex flex-col md:flex-row gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
       {/* Left: Folder Structure */}
-      <div className="w-full md:w-[350px] shrink-0 flex flex-col gap-4 bg-black/20 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar">
+      <div className="w-full md:w-[350px] shrink-0 flex flex-col gap-3 md:gap-4 bg-black/20 rounded-xl border border-white/5 p-3 md:p-4 overflow-y-auto custom-scrollbar max-h-[40vh] md:max-h-full">
         <button
           onClick={() => {
             setAppState(AppState.CAMPAIGN_SELECT);
@@ -573,13 +573,13 @@ function App() {
               </div>
               <button onClick={() => setCurrentDoc(null)} className="text-xs hover:text-white text-mag-text/50">FECHAR</button>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
               <MarkdownViewer content={currentDoc.content} />
             </div>
 
             {/* Mini Player Flutuante quando está tocando */}
             {currentTrack && isPlaying && (
-              <div className="absolute bottom-4 right-4 bg-mag-dark/95 backdrop-blur-xl border border-mag-accent/50 rounded-xl shadow-2xl p-4 w-80 animate-in slide-in-from-bottom-4 fade-in duration-300">
+              <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 bg-mag-dark/95 backdrop-blur-xl border border-mag-accent/50 rounded-xl shadow-2xl p-3 md:p-4 w-[calc(100%-1rem)] md:w-80 animate-in slide-in-from-bottom-4 fade-in duration-300">
                 <div className="flex items-center gap-3 mb-3">
                   <Music className="w-5 h-5 text-mag-accent animate-pulse" />
                   <div className="flex-1 min-w-0">
@@ -614,7 +614,7 @@ function App() {
             )}
           </div>
         ) : appState === AppState.PLAYER ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
+          <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 overflow-y-auto custom-scrollbar">
             <button
               onClick={() => setAppState(AppState.BROWSER)}
               className="absolute top-4 left-4 flex items-center text-xs text-mag-cyan hover:text-white md:hidden"

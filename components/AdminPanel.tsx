@@ -188,45 +188,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }, [files, filterCampaign, filterFolder]);
 
     return (
-        <div className="h-full flex flex-col bg-mag-dark/95 text-mag-text p-6 overflow-hidden custom-scrollbar">
+        <div className="h-full flex flex-col bg-mag-dark/95 text-mag-text p-3 md:p-6 overflow-hidden custom-scrollbar">
 
             {/* Header */}
-            <div className="flex justify-between items-center mb-8 border-b border-mag-light/30 pb-4">
-                <div className="flex items-center gap-3">
-                    <Shield className="text-mag-accent w-8 h-8" />
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-8 border-b border-mag-light/30 pb-3 md:pb-4 gap-3 sm:gap-0">
+                <div className="flex items-center gap-2 md:gap-3">
+                    <Shield className="text-mag-accent w-6 h-6 md:w-8 md:h-8" />
                     <div>
-                        <h1 className="text-2xl font-serif text-white">Painel do Mestre</h1>
-                        <p className="text-xs text-mag-cyan uppercase tracking-wider">Gerenciamento de Arquivos e Permissões</p>
+                        <h1 className="text-xl md:text-2xl font-serif text-white">Painel do Mestre</h1>
+                        <p className="text-xs text-mag-cyan uppercase tracking-wider hidden sm:block">Gerenciamento de Arquivos e Permissões</p>
                     </div>
                 </div>
-                <button onClick={onExit} className="px-4 py-2 border border-mag-light/50 rounded hover:bg-mag-light/20">
-                    Sair do Admin
+                <button onClick={onExit} className="px-3 md:px-4 py-2 border border-mag-light/50 rounded hover:bg-mag-light/20 text-sm self-end sm:self-auto">
+                    Sair
                 </button>
             </div>
 
-            <div className="flex-1 flex gap-8 min-h-0 overflow-hidden">
+            <div className="flex-1 flex flex-col lg:flex-row gap-3 md:gap-8 min-h-0 overflow-hidden">
 
                 {/* Left Column: Management */}
-                <div className="w-1/3 flex flex-col gap-8 overflow-y-auto custom-scrollbar pr-2 pb-4">
+                <div className="w-full lg:w-1/3 flex flex-col gap-4 md:gap-8 overflow-y-auto custom-scrollbar pr-2 pb-4 max-h-[60vh] lg:max-h-full">
 
                     {/* User Creation */}
-                    <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5">
-                        <h3 className="text-lg font-serif text-mag-cyan mb-4 flex items-center gap-2">
-                            <Users size={18} /> Gerenciar Usuários
+                    <div className="bg-mag-panel/50 p-4 md:p-6 rounded-lg border border-white/5">
+                        <h3 className="text-base md:text-lg font-serif text-mag-cyan mb-3 md:mb-4 flex items-center gap-2">
+                            <Users size={16} className="md:w-[18px] md:h-[18px]" /> Gerenciar Usuários
                         </h3>
-                        <form onSubmit={handleCreateUser} className="flex gap-2 mb-4">
+                        <form onSubmit={handleCreateUser} className="flex gap-2 mb-3 md:mb-4">
                             <input
                                 type="text"
                                 value={newUserName}
                                 onChange={e => setNewUserName(e.target.value)}
                                 placeholder="Nome do Jogador..."
-                                className="flex-1 bg-black/30 border border-mag-light/30 rounded px-3 py-2 focus:border-mag-accent outline-none"
+                                className="flex-1 bg-black/30 border border-mag-light/30 rounded px-2 md:px-3 py-2 focus:border-mag-accent outline-none text-sm"
                             />
                             <button type="submit" className="bg-mag-light/20 p-2 rounded hover:bg-mag-cyan hover:text-mag-dark">
-                                <Plus size={20} />
+                                <Plus size={18} className="md:w-5 md:h-5" />
                             </button>
                         </form>
-                        <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-2">
+                        <div className="max-h-32 md:max-h-48 overflow-y-auto custom-scrollbar space-y-2">
                             {users.filter(u => u.role !== 'admin').map(u => (
                                 <div key={u.id} className="flex items-center justify-between bg-black/30 p-2 rounded border border-white/5 hover:border-mag-cyan/30 transition-colors">
                                     {editingUserId === u.id ? (
@@ -281,33 +281,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     {/* Upload */}
-                    <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5">
-                        <h3 className="text-lg font-serif text-mag-cyan mb-4 flex items-center gap-2">
-                            <Upload size={18} /> Upload de Arquivos
+                    <div className="bg-mag-panel/50 p-4 md:p-6 rounded-lg border border-white/5">
+                        <h3 className="text-base md:text-lg font-serif text-mag-cyan mb-3 md:mb-4 flex items-center gap-2">
+                            <Upload size={16} className="md:w-[18px] md:h-[18px]" /> Upload de Arquivos
                         </h3>
 
-                        <div className="space-y-4">
+                        <div className="space-y-3 md:space-y-4">
                             <div>
-                                <label className="text-xs uppercase tracking-wider text-mag-text/60 block mb-1">Campanha</label>
+                                <label className="text-xs uppercase tracking-wider text-mag-text/60 block mb-1.5">Campanha</label>
                                 <input
                                     type="text"
                                     value={campaignName}
                                     onChange={e => setCampaignName(e.target.value)}
-                                    className="w-full bg-black/30 border border-mag-light/30 rounded px-3 py-2"
+                                    className="w-full bg-black/30 border border-mag-light/30 rounded px-2 md:px-3 py-2 text-sm"
                                 />
                             </div>
                             <div>
-                                <label className="text-xs uppercase tracking-wider text-mag-text/60 block mb-1">Pasta / Tipo</label>
+                                <label className="text-xs uppercase tracking-wider text-mag-text/60 block mb-1.5">Pasta / Tipo</label>
                                 <input
                                     type="text"
                                     value={folderName}
                                     onChange={e => setFolderName(e.target.value)}
-                                    className="w-full bg-black/30 border border-mag-light/30 rounded px-3 py-2"
+                                    className="w-full bg-black/30 border border-mag-light/30 rounded px-2 md:px-3 py-2 text-sm"
                                 />
                             </div>
 
                             <div className="pt-2 space-y-3">
-                                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-mag-light/30 rounded-lg cursor-pointer hover:bg-mag-light/10 transition-colors">
+                                <label className="flex flex-col items-center justify-center w-full h-24 md:h-32 border-2 border-dashed border-mag-light/30 rounded-lg cursor-pointer hover:bg-mag-light/10 transition-colors">
                                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                                         {isProcessing ? (
                                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-mag-cyan"></div>
@@ -342,11 +342,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     {/* Campanhas Disponíveis */}
-                    <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5 flex flex-col">
-                        <h3 className="text-lg font-serif text-mag-cyan mb-4 flex items-center gap-2">
-                            <FileText size={18} /> Campanhas Disponíveis
+                    <div className="bg-mag-panel/50 p-4 md:p-6 rounded-lg border border-white/5 flex flex-col">
+                        <h3 className="text-base md:text-lg font-serif text-mag-cyan mb-3 md:mb-4 flex items-center gap-2">
+                            <FileText size={16} className="md:w-[18px] md:h-[18px]" /> Campanhas Disponíveis
                         </h3>
-                        <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                        <div className="space-y-2 max-h-48 md:max-h-64 overflow-y-auto custom-scrollbar pr-2">
                             {Array.from(new Set(files.map(f => f.campaign))).map(campaign => {
                                 const fileCount = files.filter(f => f.campaign === campaign).length;
                                 return (
@@ -367,14 +367,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => shareWithAllUsers(campaign)}
-                                                className="flex-1 px-2 py-1.5 rounded text-xs text-white bg-mag-cyan/20 hover:bg-mag-cyan/30 border border-mag-cyan/40 uppercase tracking-wider"
+                                                className="flex-1 px-2 py-1.5 rounded text-xs text-white bg-mag-cyan/20 hover:bg-mag-cyan/30 border border-mag-cyan/40 uppercase tracking-wider whitespace-nowrap"
                                                 title="Compartilhar com todos os jogadores"
                                             >
                                                 Todos
                                             </button>
                                             <button
                                                 onClick={() => setEditingCampaign(campaign)}
-                                                className="flex-1 px-2 py-1.5 rounded text-xs text-mag-cyan/70 hover:bg-mag-cyan/10 hover:text-mag-cyan border border-mag-cyan/30 uppercase tracking-wider"
+                                                className="flex-1 px-2 py-1.5 rounded text-xs text-mag-cyan/70 hover:bg-mag-cyan/10 hover:text-mag-cyan border border-mag-cyan/30 uppercase tracking-wider whitespace-nowrap"
                                                 title="Compartilhar campanha individualmente"
                                             >
                                                 Individual
@@ -392,11 +392,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 {/* Right Column: File List & Permissions */}
                 <div className="flex-1 bg-mag-panel/30 rounded-lg border border-white/5 flex flex-col overflow-hidden">
-                    <div className="p-4 border-b border-white/5 bg-black/20">
-                        <h3 className="font-serif text-mag-cyan mb-3">Arquivos do Sistema</h3>
+                    <div className="p-3 md:p-4 border-b border-white/5 bg-black/20">
+                        <h3 className="font-serif text-mag-cyan mb-2 md:mb-3 text-base md:text-lg">Arquivos do Sistema</h3>
 
                         {/* Filter Controls */}
-                        <div className="flex gap-3">
+                        <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
                             <div className="flex-1">
                                 <label className="text-xs uppercase tracking-wider text-mag-text/50 block mb-1.5 flex items-center gap-1">
                                     <Filter size={12} /> Campanha
@@ -433,7 +433,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         setFilterCampaign('');
                                         setFilterFolder('');
                                     }}
-                                    className="self-end px-3 py-1.5 bg-mag-accent/20 hover:bg-mag-accent/30 rounded text-xs text-mag-accent"
+                                    className="sm:self-end px-3 py-1.5 bg-mag-accent/20 hover:bg-mag-accent/30 rounded text-xs text-mag-accent w-full sm:w-auto"
                                     title="Limpar filtros"
                                 >
                                     Limpar
@@ -454,8 +454,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </div>
                         )}
                         {filteredFiles.map(file => (
-                            <div key={file.id} className="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-mag-light/30 transition-colors">
-                                <div className="flex items-center gap-3 overflow-hidden">
+                            <div key={file.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-black/40 p-2 md:p-3 rounded border border-white/5 hover:border-mag-light/30 transition-colors gap-2">
+                                <div className="flex items-center gap-2 md:gap-3 overflow-hidden w-full sm:w-auto">
                                     <div className={`p-2 rounded ${file.type === 'audio' ? 'bg-orange-900/20 text-orange-400' :
                                         file.type === 'video' ? 'bg-purple-900/20 text-purple-400' :
                                             'bg-blue-900/20 text-blue-400'
@@ -465,7 +465,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                                 <FileText size={20} />}
                                     </div>
                                     <div>
-                                        <div className="font-medium truncate max-w-[200px]">{file.name}</div>
+                                        <div className="font-medium truncate max-w-[150px] sm:max-w-[200px] text-sm md:text-base">{file.name}</div>
                                         <div className="text-xs text-mag-text/50 flex gap-2">
                                             <span className="bg-white/10 px-1.5 rounded">{file.campaign}</span>
                                             <span className="bg-white/10 px-1.5 rounded">{file.folder}</span>
@@ -473,13 +473,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 md:gap-4 w-full sm:w-auto justify-between sm:justify-end">
                                     <div className="text-xs text-right text-mag-text/40">
-                                        {file.allowedUserIds.length} acessos
+                                        {file.allowedUserIds.length} acesso{file.allowedUserIds.length !== 1 ? 's' : ''}
                                     </div>
                                     <button
                                         onClick={() => setEditingFileId(file.id)}
-                                        className={`px-3 py-1.5 rounded text-xs uppercase tracking-wider border transition-all ${editingFileId === file.id
+                                        className={`px-2 md:px-3 py-1 md:py-1.5 rounded text-xs uppercase tracking-wider border transition-all whitespace-nowrap ${editingFileId === file.id
                                             ? 'bg-mag-accent text-white border-mag-accent'
                                             : 'border-mag-light/30 hover:border-mag-cyan hover:text-mag-cyan'
                                             }`}
@@ -494,7 +494,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 {/* Permission Side Panel (Overlay or Third Column) */}
                 {editingFile && (
-                    <div className="w-64 bg-mag-dark border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-300">
+                    <div className="w-full sm:w-64 bg-mag-dark border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-300 absolute sm:relative inset-0 sm:inset-auto z-10">
                         <div className="p-4 border-b border-white/10 bg-mag-accent/10">
                             <h4 className="text-sm font-bold text-mag-accent uppercase tracking-widest mb-1">Permissões</h4>
                             <p className="text-xs truncate text-white">{editingFile.name}</p>
@@ -528,7 +528,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 {/* Campaign Permission Panel */}
                 {editingCampaign && (
-                    <div className="w-64 bg-mag-dark border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-300">
+                    <div className="w-full sm:w-64 bg-mag-dark border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-300 absolute sm:relative inset-0 sm:inset-auto z-10">
                         <div className="p-4 border-b border-white/10 bg-mag-cyan/10">
                             <h4 className="text-sm font-bold text-mag-cyan uppercase tracking-widest mb-1">Campanha</h4>
                             <p className="text-xs truncate text-white">{editingCampaign}</p>
