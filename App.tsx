@@ -455,6 +455,42 @@ function App() {
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
               <MarkdownViewer content={currentDoc.content} />
             </div>
+
+            {/* Mini Player Flutuante quando está tocando */}
+            {currentTrack && isPlaying && (
+              <div className="absolute bottom-4 right-4 bg-mag-dark/95 backdrop-blur-xl border border-mag-accent/50 rounded-xl shadow-2xl p-4 w-80 animate-in slide-in-from-bottom-4 fade-in duration-300">
+                <div className="flex items-center gap-3 mb-3">
+                  <Music className="w-5 h-5 text-mag-accent animate-pulse" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-mag-text/50 uppercase tracking-wider">Tocando Agora</div>
+                    <div className="text-sm text-white font-semibold truncate">{currentTrack.name}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setAppState(AppState.PLAYER);
+                      setCurrentDoc(null);
+                    }}
+                    className="text-mag-cyan hover:text-white text-xs uppercase tracking-wider shrink-0"
+                  >
+                    Abrir
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-gradient-to-br from-mag-accent to-red-800 flex items-center justify-center text-white hover:scale-105 transition-all shadow-lg">
+                    {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current pl-0.5" />}
+                  </button>
+
+                  <div className="flex-1 flex items-center gap-2">
+                    <span className="text-xs font-mono text-mag-text/70">{formatTime(currentTime)}</span>
+                    <div className="flex-1 h-1 bg-mag-light/20 rounded-full relative overflow-hidden">
+                      <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-mag-accent to-mag-cyan rounded-full transition-all" style={{ width: `${progress}%` }}></div>
+                    </div>
+                    <span className="text-xs font-mono text-mag-text/70">{formatTime(duration)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : appState === AppState.PLAYER ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
