@@ -515,7 +515,8 @@ function App() {
   const renderBrowser = () => (
     <div className="h-full flex flex-col md:flex-row gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
       {/* Left: Folder Structure */}
-      <div className="w-full md:w-[350px] shrink-0 flex flex-col gap-3 md:gap-4 bg-black/20 rounded-xl border border-white/5 p-3 md:p-4 overflow-y-auto custom-scrollbar max-h-[40vh] md:max-h-full">
+      <div className={`w-full md:w-[350px] shrink-0 flex flex-col gap-3 md:gap-4 bg-black/20 rounded-xl border border-white/5 p-3 md:p-4 overflow-y-auto custom-scrollbar max-h-[40vh] md:max-h-full ${currentDoc ? 'hidden md:flex' : 'flex'
+        }`}>
         <button
           onClick={() => {
             setAppState(AppState.CAMPAIGN_SELECT);
@@ -563,17 +564,25 @@ function App() {
       </div>
 
       {/* Right: Content Viewer (Doc or Player Placeholder) */}
-      <div className="flex-1 bg-mag-panel/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
+      <div className={`flex-1 bg-mag-panel/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative ${currentDoc ? 'fixed md:relative inset-0 md:inset-auto z-20 md:z-auto m-0 md:m-0 rounded-none md:rounded-xl' : ''
+        }`}>
         {currentDoc ? (
           <div className="flex flex-col h-full">
             <div className="p-3 md:p-4 border-b border-white/10 flex items-center justify-between bg-black/20 sticky top-0 z-10 backdrop-blur-md">
+              <button
+                onClick={() => setCurrentDoc(null)}
+                className="md:hidden flex items-center text-mag-cyan hover:text-white mr-2 shrink-0"
+                title="Voltar"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
               <div className="flex items-center min-w-0 flex-1">
                 <FileText className="w-4 h-4 md:w-5 md:h-5 mr-2 text-mag-cyan shrink-0" />
                 <h3 className="text-base md:text-lg font-serif text-mag-text truncate">{currentDoc.name}</h3>
               </div>
-              <button onClick={() => setCurrentDoc(null)} className="text-xs hover:text-white text-mag-text/50 ml-2 shrink-0">FECHAR</button>
+              <button onClick={() => setCurrentDoc(null)} className="hidden md:block text-xs hover:text-white text-mag-text/50 ml-2 shrink-0">FECHAR</button>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 md:p-6 lg:p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
               <MarkdownViewer content={currentDoc.content} />
             </div>
 
