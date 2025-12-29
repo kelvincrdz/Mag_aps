@@ -26,31 +26,45 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content }) => {
   return (
     <div className="
       prose prose-invert max-w-none 
-      prose-headings:font-serif prose-headings:text-mag-cyan 
+      overflow-hidden
+      break-words
+      prose-headings:font-serif prose-headings:text-mag-cyan prose-headings:break-words
       prose-h1:text-2xl md:prose-h1:text-3xl prose-h1:border-b prose-h1:border-white/10 prose-h1:pb-3 md:prose-h1:pb-4 prose-h1:tracking-wide
       prose-h2:text-lg md:prose-h2:text-xl prose-h2:text-mag-text/90 prose-h2:mt-6 md:prose-h2:mt-8
       prose-h3:text-base md:prose-h3:text-lg
-      prose-p:text-base md:prose-p:text-mag-text/80 prose-p:leading-relaxed prose-p:font-light prose-p:mb-4
-      prose-strong:text-mag-accent prose-strong:font-bold
+      prose-p:text-base md:prose-p:text-mag-text/80 prose-p:leading-relaxed prose-p:font-light prose-p:mb-4 prose-p:break-words
+      prose-strong:text-mag-accent prose-strong:font-bold prose-strong:break-words
       prose-blockquote:border-l-4 prose-blockquote:border-mag-accent prose-blockquote:bg-white/5 prose-blockquote:py-2 prose-blockquote:px-3 md:prose-blockquote:px-4 prose-blockquote:rounded-r prose-blockquote:text-sm md:prose-blockquote:text-base
-      prose-ul:list-disc prose-ul:marker:text-mag-cyan prose-ul:text-base prose-ul:my-3
-      prose-li:text-base prose-li:my-1
-      prose-a:text-mag-cyan prose-a:no-underline hover:prose-a:underline hover:prose-a:text-white transition-colors
-      prose-code:text-sm md:prose-code:text-base prose-code:text-mag-accent prose-code:bg-black/30 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
-      prose-pre:bg-[#05080a] prose-pre:border prose-pre:border-white/10 prose-pre:shadow-inner prose-pre:overflow-x-auto prose-pre:text-sm prose-pre:p-3 md:prose-pre:p-4
+      prose-ul:list-disc prose-ul:marker:text-mag-cyan prose-ul:text-base prose-ul:my-3 prose-ul:pl-5
+      prose-ol:list-decimal prose-ol:marker:text-mag-cyan prose-ol:text-base prose-ol:my-3 prose-ol:pl-5
+      prose-li:text-base prose-li:my-1 prose-li:break-words
+      prose-a:text-mag-cyan prose-a:no-underline hover:prose-a:underline hover:prose-a:text-white prose-a:transition-colors prose-a:break-all
+      prose-code:text-sm md:prose-code:text-base prose-code:text-mag-accent prose-code:bg-black/30 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-code:break-words
+      prose-pre:bg-[#05080a] prose-pre:border prose-pre:border-white/10 prose-pre:shadow-inner prose-pre:overflow-x-auto prose-pre:text-xs md:prose-pre:text-sm prose-pre:p-3 md:prose-pre:p-4 prose-pre:rounded-lg prose-pre:max-w-full
       prose-th:text-mag-cyan prose-th:uppercase prose-th:text-xs prose-th:tracking-wider prose-th:border-b prose-th:border-white/20 prose-th:p-2 md:prose-th:p-3
-      prose-td:border-b prose-td:border-white/5 prose-td:p-2 md:prose-td:p-3 prose-td:text-sm
+      prose-td:border-b prose-td:border-white/5 prose-td:p-2 md:prose-td:p-3 prose-td:text-sm prose-td:break-words
+      prose-img:rounded-lg prose-img:shadow-lg prose-img:max-w-full prose-img:h-auto prose-img:my-4
     ">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           table: ({ node, ...props }) => (
-            <div className="overflow-x-auto my-6 rounded-lg border border-white/10 bg-black/20 custom-scrollbar">
-              <table className="w-full text-left border-collapse" {...props} />
+            <div className="overflow-x-auto my-6 rounded-lg border border-white/10 bg-black/20 custom-scrollbar -mx-3 md:mx-0">
+              <table className="min-w-full text-left border-collapse" {...props} />
             </div>
           ),
           hr: ({ node, ...props }) => (
-            <hr className="border-t border-white/10 my-8" {...props} />
+            <hr className="border-t border-white/10 my-6 md:my-8" {...props} />
+          ),
+          img: ({ node, ...props }) => (
+            <img
+              className="rounded-lg shadow-lg max-w-full h-auto my-4"
+              loading="lazy"
+              {...props}
+            />
+          ),
+          pre: ({ node, ...props }) => (
+            <pre className="overflow-x-auto custom-scrollbar" {...props} />
           )
         }}
       >
