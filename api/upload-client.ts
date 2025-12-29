@@ -1,5 +1,9 @@
 import { supabase } from "../lib/supabase";
 
+export const config = {
+  runtime: "edge",
+};
+
 function slugify(input: string) {
   return input
     .toLowerCase()

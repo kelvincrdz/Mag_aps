@@ -1,5 +1,9 @@
 import { supabase } from "../lib/supabase";
 
+export const config = {
+  runtime: "edge",
+};
+
 interface FileRecord {
   id: string;
   name: string;
