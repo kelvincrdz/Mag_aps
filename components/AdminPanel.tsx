@@ -207,7 +207,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="flex-1 flex gap-8 min-h-0 overflow-hidden">
 
                 {/* Left Column: Management */}
-                <div className="w-1/3 flex flex-col gap-8 overflow-y-auto custom-scrollbar pr-2">
+                <div className="w-1/3 flex flex-col gap-8 overflow-y-auto custom-scrollbar pr-2 pb-4">
 
                     {/* User Creation */}
                     <div className="bg-mag-panel/50 p-6 rounded-lg border border-white/5">
