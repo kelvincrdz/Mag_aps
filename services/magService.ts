@@ -1,6 +1,5 @@
 import JSZip from "jszip";
 import { MagPackage, AudioTrack, DocumentFile, GameFile } from "../types";
-import { upload } from "@vercel/blob/client";
 
 export const processMagFile = async (file: File): Promise<MagPackage> => {
   const zip = new JSZip();
@@ -131,27 +130,6 @@ export const uploadViaApi = async (
       }`
     );
   }
-};
-
-export const uploadClientDirect = async (
-  campaign: string,
-  folder: string,
-  file: File
-): Promise<Awaited<ReturnType<typeof upload>>> => {
-  const slug = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9._-]/g, "")
-      .replace(/-+/g, "-");
-  const pathname = `campaigns/${slug(campaign)}/${slug(
-    folder
-  )}/${Date.now()}-${slug(file.name)}`;
-  const result = await upload(pathname, file, {
-    access: "public",
-    handleUploadUrl: "/api/upload-client",
-  });
-  return result;
 };
 
 export const saveFileMetadata = async (
