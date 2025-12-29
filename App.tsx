@@ -1,13 +1,13 @@
 
 import React, { useState, useRef, useEffect, ChangeEvent } from 'react';
-import { 
-  FolderOpen, 
-  FileText, 
-  Rewind, 
-  Play, 
-  Pause, 
-  FastForward, 
-  LogOut, 
+import {
+  FolderOpen,
+  FileText,
+  Rewind,
+  Play,
+  Pause,
+  FastForward,
+  LogOut,
   Music,
   ChevronLeft,
   ChevronRight,
@@ -18,12 +18,13 @@ import { Cassette } from './components/Cassette';
 import { MarkdownViewer } from './components/MarkdownViewer';
 import { AdminPanel } from './components/AdminPanel';
 import { AppState, GameFile, User, INITIAL_USERS } from './types';
+import { uploadViaApi, saveFileMetadata, listAllFiles } from './services/magService';
 
 function App() {
   // --- Global State ---
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [files, setFiles] = useState<GameFile[]>([]);
-  
+
   // --- Session State ---
   const [appState, setAppState] = useState<AppState>(AppState.LOGIN);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -38,7 +39,7 @@ function App() {
 
   // --- Playback State ---
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0); 
+  const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -46,7 +47,7 @@ function App() {
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // --- Computed Data ---
-  
+
   // Filter files the current user can see
   const userFiles = files.filter(f => {
     if (!currentUser) return false;
@@ -58,7 +59,7 @@ function App() {
   const availableCampaigns = Array.from(new Set(userFiles.map(f => f.campaign)));
 
   // Get folders for selected campaign
-  const campaignFiles = selectedCampaign 
+  const campaignFiles = selectedCampaign
     ? userFiles.filter(f => f.campaign === selectedCampaign)
     : [];
 
@@ -71,7 +72,7 @@ function App() {
 
   // Sorted list of tracks for the player (from current campaign)
   const tracks = campaignFiles.filter(f => f.type === 'audio').sort((a, b) => a.name.localeCompare(b.name));
-  
+
   const currentTrack = currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null;
 
   // --- Handlers ---
@@ -79,12 +80,16 @@ function App() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const user = users.find(u => u.id === selectedUserLoginId);
-    
+
     if (user) {
       if (user.role === 'admin') {
         if (password === '535846') {
           setCurrentUser(user);
           setAppState(AppState.CAMPAIGN_SELECT);
+          // Load remote files from Blob
+          listAllFiles()
+            .then(remote => setFiles(remote))
+            .catch(err => console.error('Listagem falhou', err));
           setPassword('');
           setLoginError('');
         } else {
@@ -94,6 +99,9 @@ function App() {
       } else {
         setCurrentUser(user);
         setAppState(AppState.CAMPAIGN_SELECT);
+        listAllFiles()
+          .then(remote => setFiles(remote))
+          .catch(err => console.error('Listagem falhou', err));
       }
     }
   };
@@ -106,8 +114,8 @@ function App() {
     setIsPlaying(false);
     setProgress(0);
     if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
   };
 
@@ -122,12 +130,48 @@ function App() {
     setUsers([...users, newUser]);
   };
 
-  const addFile = (file: GameFile) => {
-    setFiles([...files, file]);
+  const addFile = async (file: GameFile) => {
+    try {
+      const contentType = file.type === 'audio' ? (file.blob as Blob)?.type || 'audio/mpeg' : 'text/markdown';
+      const blobToSend = file.type === 'audio' && file.blob ? file.blob : new Blob([file.content], { type: 'text/markdown' });
+      const uploaded = await uploadViaApi(file.campaign, file.folder, file.name, blobToSend, contentType);
+      const remoteUrl = uploaded.url;
+      await saveFileMetadata({
+        id: file.id,
+        name: file.name,
+        type: file.type,
+        campaign: file.campaign,
+        folder: file.folder,
+        url: remoteUrl,
+        allowedUserIds: file.allowedUserIds,
+      });
+      const newLocal: GameFile = { ...file, content: remoteUrl, blob: undefined };
+      setFiles([...files, newLocal]);
+    } catch (err) {
+      alert('Falha no upload/salvamento.');
+      console.error(err);
+    }
   };
 
-  const updatePermissions = (fileId: string, userIds: string[]) => {
-    setFiles(files.map(f => f.id === fileId ? { ...f, allowedUserIds: userIds } : f));
+  const updatePermissions = async (fileId: string, userIds: string[]) => {
+    const target = files.find(f => f.id === fileId);
+    if (!target) return;
+    const updated = { ...target, allowedUserIds: userIds };
+    try {
+      await saveFileMetadata({
+        id: updated.id,
+        name: updated.name,
+        type: updated.type,
+        campaign: updated.campaign,
+        folder: updated.folder,
+        url: updated.content,
+        allowedUserIds: updated.allowedUserIds,
+      });
+      setFiles(files.map(f => f.id === fileId ? updated : f));
+    } catch (err) {
+      alert('Falha ao atualizar permissões.');
+      console.error(err);
+    }
   };
 
   // --- Playback Handlers ---
@@ -192,7 +236,7 @@ function App() {
   };
 
   // --- Views ---
-  
+
   const selectedUser = users.find(u => u.id === selectedUserLoginId);
   const isAdminSelected = selectedUser?.role === 'admin';
 
@@ -209,26 +253,26 @@ function App() {
           <div className="space-y-2">
             <label className="text-mag-text text-xs uppercase tracking-wider font-bold ml-1">Selecione o Usuário</label>
             <div className="relative">
-                <select
-                    value={selectedUserLoginId}
-                    onChange={(e) => {
-                      setSelectedUserLoginId(e.target.value);
-                      setPassword('');
-                      setLoginError('');
-                    }}
-                    className="w-full bg-mag-dark/80 border border-mag-light text-white py-3 px-4 rounded appearance-none focus:outline-none focus:border-mag-cyan focus:ring-1 focus:ring-mag-cyan transition-all font-mono tracking-wide cursor-pointer"
-                >
-                    <option value="" disabled>-- Selecione --</option>
-                    {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-mag-cyan">
-                    <ChevronLeft className="-rotate-90 w-4 h-4" />
-                </div>
+              <select
+                value={selectedUserLoginId}
+                onChange={(e) => {
+                  setSelectedUserLoginId(e.target.value);
+                  setPassword('');
+                  setLoginError('');
+                }}
+                className="w-full bg-mag-dark/80 border border-mag-light text-white py-3 px-4 rounded appearance-none focus:outline-none focus:border-mag-cyan focus:ring-1 focus:ring-mag-cyan transition-all font-mono tracking-wide cursor-pointer"
+              >
+                <option value="" disabled>-- Selecione --</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-mag-cyan">
+                <ChevronLeft className="-rotate-90 w-4 h-4" />
+              </div>
             </div>
           </div>
-          
+
           {isAdminSelected && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
               <label className="text-mag-text text-xs uppercase tracking-wider font-bold ml-1 text-mag-accent">Senha de Mestre</label>
@@ -247,7 +291,7 @@ function App() {
               {loginError}
             </div>
           )}
-          
+
           <button
             type="submit"
             disabled={!selectedUserLoginId || (isAdminSelected && !password)}
@@ -262,191 +306,190 @@ function App() {
 
   const renderCampaignSelect = () => (
     <div className="max-w-6xl mx-auto pt-12 animate-in fade-in duration-500">
-        <div className="flex justify-between items-end mb-10 border-b border-white/10 pb-4">
-            <div>
-                <h2 className="text-3xl font-serif text-white mb-2">Campanhas Disponíveis</h2>
-                <p className="text-mag-text/60">Selecione uma pasta para acessar os arquivos.</p>
-            </div>
-            <div className="flex gap-4">
-                {currentUser?.role === 'admin' && (
-                    <button 
-                        onClick={() => setAppState(AppState.ADMIN)}
-                        className="flex items-center gap-2 bg-mag-light/20 hover:bg-mag-accent/20 border border-mag-light/50 px-4 py-2 rounded text-mag-cyan hover:text-white transition-all uppercase text-xs tracking-wider"
-                    >
-                        <Settings size={16} /> Painel Mestre
-                    </button>
-                )}
-            </div>
+      <div className="flex justify-between items-end mb-10 border-b border-white/10 pb-4">
+        <div>
+          <h2 className="text-3xl font-serif text-white mb-2">Campanhas Disponíveis</h2>
+          <p className="text-mag-text/60">Selecione uma pasta para acessar os arquivos.</p>
         </div>
+        <div className="flex gap-4">
+          {currentUser?.role === 'admin' && (
+            <button
+              onClick={() => setAppState(AppState.ADMIN)}
+              className="flex items-center gap-2 bg-mag-light/20 hover:bg-mag-accent/20 border border-mag-light/50 px-4 py-2 rounded text-mag-cyan hover:text-white transition-all uppercase text-xs tracking-wider"
+            >
+              <Settings size={16} /> Painel Mestre
+            </button>
+          )}
+        </div>
+      </div>
 
-        {availableCampaigns.length === 0 ? (
-             <div className="text-center py-20 bg-mag-panel/30 rounded-lg border border-white/5 border-dashed">
-                <Folder size={48} className="mx-auto text-mag-text/20 mb-4" />
-                <p className="text-mag-text/40">Nenhuma campanha disponível para seu usuário.</p>
-                {currentUser?.role === 'admin' && (
-                    <p className="text-xs text-mag-accent mt-2">Acesse o Painel Mestre para criar arquivos.</p>
-                )}
-             </div>
-        ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {availableCampaigns.map(camp => (
-                    <button
-                        key={camp}
-                        onClick={() => {
-                            setSelectedCampaign(camp);
-                            setAppState(AppState.BROWSER);
-                        }}
-                        className="group relative h-48 bg-mag-panel/60 border border-white/5 hover:border-mag-cyan/50 rounded-xl p-6 text-left transition-all hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_rgba(108,207,246,0.2)] overflow-hidden"
-                    >
-                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <Folder size={100} />
-                        </div>
-                        <div className="relative z-10 h-full flex flex-col justify-between">
-                            <div>
-                                <div className="text-xs font-mono text-mag-accent mb-2">CONFIDENTIAL</div>
-                                <h3 className="text-2xl font-serif text-white group-hover:text-mag-cyan transition-colors">{camp}</h3>
-                            </div>
-                            <div className="flex items-center text-xs text-mag-text/60 group-hover:text-mag-text transition-colors">
-                                <span>Abrir Arquivos</span>
-                                <ChevronRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
-                            </div>
-                        </div>
-                    </button>
-                ))}
-            </div>
-        )}
+      {availableCampaigns.length === 0 ? (
+        <div className="text-center py-20 bg-mag-panel/30 rounded-lg border border-white/5 border-dashed">
+          <Folder size={48} className="mx-auto text-mag-text/20 mb-4" />
+          <p className="text-mag-text/40">Nenhuma campanha disponível para seu usuário.</p>
+          {currentUser?.role === 'admin' && (
+            <p className="text-xs text-mag-accent mt-2">Acesse o Painel Mestre para criar arquivos.</p>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {availableCampaigns.map(camp => (
+            <button
+              key={camp}
+              onClick={() => {
+                setSelectedCampaign(camp);
+                setAppState(AppState.BROWSER);
+              }}
+              className="group relative h-48 bg-mag-panel/60 border border-white/5 hover:border-mag-cyan/50 rounded-xl p-6 text-left transition-all hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_rgba(108,207,246,0.2)] overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Folder size={100} />
+              </div>
+              <div className="relative z-10 h-full flex flex-col justify-between">
+                <div>
+                  <div className="text-xs font-mono text-mag-accent mb-2">CONFIDENTIAL</div>
+                  <h3 className="text-2xl font-serif text-white group-hover:text-mag-cyan transition-colors">{camp}</h3>
+                </div>
+                <div className="flex items-center text-xs text-mag-text/60 group-hover:text-mag-text transition-colors">
+                  <span>Abrir Arquivos</span>
+                  <ChevronRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 
   const renderPlayerControls = () => (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in duration-700">
-        <Cassette 
-            isPlaying={isPlaying} 
-            progress={duration > 0 ? currentTime / duration : 0} 
-            title={currentTrack?.name || "AGUARDANDO..."} 
-        />
-        
-        <div className="bg-mag-panel/60 backdrop-blur-md rounded-2xl p-6 border border-white/5 shadow-2xl">
-            <div className="mb-4 flex items-center space-x-4">
-                <span className="text-xs font-mono text-mag-cyan w-10 text-right shrink-0">{formatTime(currentTime)}</span>
-                <div className="relative flex-1 h-4 group">
-                    <div className="absolute top-1/2 -translate-y-1/2 w-full h-1 bg-mag-dark rounded-full overflow-hidden">
-                        <div className="h-full bg-mag-accent transition-all duration-100 ease-out" style={{ width: `${progress}%` }} />
-                    </div>
-                    <input type="range" min="0" max="100" step="0.1" value={progress} onChange={handleSeek} disabled={!currentTrack} className="absolute top-0 w-full h-full opacity-0 cursor-pointer" />
-                </div>
-                <span className="text-xs font-mono text-mag-cyan w-10 shrink-0">{formatTime(duration)}</span>
-            </div>
+      <Cassette
+        isPlaying={isPlaying}
+        progress={duration > 0 ? currentTime / duration : 0}
+        title={currentTrack?.name || "AGUARDANDO..."}
+      />
 
-            <div className="flex justify-center items-center gap-8">
-                <button onClick={() => skip(-10)} disabled={!currentTrack} className="text-mag-text hover:text-mag-cyan disabled:opacity-30 p-2"><Rewind className="w-8 h-8" /></button>
-                <button onClick={togglePlay} disabled={!currentTrack} className="w-16 h-16 rounded-full bg-gradient-to-br from-mag-accent to-red-800 flex items-center justify-center text-white hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:grayscale">
-                    {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current pl-1" />}
-                </button>
-                <button onClick={() => skip(10)} disabled={!currentTrack} className="text-mag-text hover:text-mag-cyan disabled:opacity-30 p-2"><FastForward className="w-8 h-8" /></button>
+      <div className="bg-mag-panel/60 backdrop-blur-md rounded-2xl p-6 border border-white/5 shadow-2xl">
+        <div className="mb-4 flex items-center space-x-4">
+          <span className="text-xs font-mono text-mag-cyan w-10 text-right shrink-0">{formatTime(currentTime)}</span>
+          <div className="relative flex-1 h-4 group">
+            <div className="absolute top-1/2 -translate-y-1/2 w-full h-1 bg-mag-dark rounded-full overflow-hidden">
+              <div className="h-full bg-mag-accent transition-all duration-100 ease-out" style={{ width: `${progress}%` }} />
             </div>
+            <input type="range" min="0" max="100" step="0.1" value={progress} onChange={handleSeek} disabled={!currentTrack} className="absolute top-0 w-full h-full opacity-0 cursor-pointer" />
+          </div>
+          <span className="text-xs font-mono text-mag-cyan w-10 shrink-0">{formatTime(duration)}</span>
         </div>
+
+        <div className="flex justify-center items-center gap-8">
+          <button onClick={() => skip(-10)} disabled={!currentTrack} className="text-mag-text hover:text-mag-cyan disabled:opacity-30 p-2"><Rewind className="w-8 h-8" /></button>
+          <button onClick={togglePlay} disabled={!currentTrack} className="w-16 h-16 rounded-full bg-gradient-to-br from-mag-accent to-red-800 flex items-center justify-center text-white hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:grayscale">
+            {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current pl-1" />}
+          </button>
+          <button onClick={() => skip(10)} disabled={!currentTrack} className="text-mag-text hover:text-mag-cyan disabled:opacity-30 p-2"><FastForward className="w-8 h-8" /></button>
+        </div>
+      </div>
     </div>
   );
 
   const renderBrowser = () => (
     <div className="h-full flex flex-col md:flex-row gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
-        {/* Left: Folder Structure */}
-        <div className="w-full md:w-[350px] shrink-0 flex flex-col gap-4 bg-black/20 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar">
-            <button 
-                onClick={() => {
-                    setAppState(AppState.CAMPAIGN_SELECT);
-                    setCurrentDoc(null);
-                }}
-                className="flex items-center text-mag-cyan hover:text-white transition-colors mb-2 text-sm uppercase tracking-wider font-bold"
+      {/* Left: Folder Structure */}
+      <div className="w-full md:w-[350px] shrink-0 flex flex-col gap-4 bg-black/20 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar">
+        <button
+          onClick={() => {
+            setAppState(AppState.CAMPAIGN_SELECT);
+            setCurrentDoc(null);
+          }}
+          className="flex items-center text-mag-cyan hover:text-white transition-colors mb-2 text-sm uppercase tracking-wider font-bold"
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" /> Voltar: {selectedCampaign}
+        </button>
+
+        {Object.entries(folders).map(([folderName, files]) => (
+          <div key={folderName} className="mb-4">
+            <h4 className="text-xs font-serif text-mag-text/50 uppercase border-b border-white/10 pb-1 mb-2 flex items-center">
+              <Folder className="w-3 h-3 mr-2" /> {folderName}
+            </h4>
+            <div className="space-y-1">
+              {files.map(file => (
+                <button
+                  key={file.id}
+                  onClick={() => {
+                    if (file.type === 'audio') {
+                      setAppState(AppState.PLAYER);
+                      changeTrack(file.id);
+                    } else {
+                      setCurrentDoc(file);
+                    }
+                  }}
+                  className={`w-full text-left p-2 rounded text-xs transition-all flex items-center gap-2 group ${(currentTrack?.id === file.id && isPlaying) || (currentDoc?.id === file.id)
+                    ? 'bg-mag-accent/20 border border-mag-accent/50 text-white'
+                    : 'hover:bg-mag-light/30 text-mag-text/80'
+                    }`}
+                >
+                  {file.type === 'audio' ? <Music size={14} /> : <FileText size={14} />}
+                  <span className="truncate flex-1">{file.name}</span>
+                  {file.type === 'audio' && currentTrack?.id === file.id && isPlaying && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-mag-accent animate-pulse"></div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Right: Content Viewer (Doc or Player Placeholder) */}
+      <div className="flex-1 bg-mag-panel/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
+        {currentDoc ? (
+          <div className="flex flex-col h-full">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20 sticky top-0 z-10 backdrop-blur-md">
+              <div className="flex items-center">
+                <FileText className="w-5 h-5 mr-2 text-mag-cyan" />
+                <h3 className="text-lg font-serif text-mag-text truncate max-w-[300px]">{currentDoc.name}</h3>
+              </div>
+              <button onClick={() => setCurrentDoc(null)} className="text-xs hover:text-white text-mag-text/50">FECHAR</button>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
+              <MarkdownViewer content={currentDoc.content} />
+            </div>
+          </div>
+        ) : appState === AppState.PLAYER ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
+            <button
+              onClick={() => setAppState(AppState.BROWSER)}
+              className="absolute top-4 left-4 flex items-center text-xs text-mag-cyan hover:text-white md:hidden"
             >
-                <ChevronLeft className="w-4 h-4 mr-1" /> Voltar: {selectedCampaign}
+              <ChevronLeft size={14} /> Arquivos
             </button>
-
-            {Object.entries(folders).map(([folderName, files]) => (
-                <div key={folderName} className="mb-4">
-                    <h4 className="text-xs font-serif text-mag-text/50 uppercase border-b border-white/10 pb-1 mb-2 flex items-center">
-                        <Folder className="w-3 h-3 mr-2" /> {folderName}
-                    </h4>
-                    <div className="space-y-1">
-                        {files.map(file => (
-                            <button
-                                key={file.id}
-                                onClick={() => {
-                                    if (file.type === 'audio') {
-                                        setAppState(AppState.PLAYER);
-                                        changeTrack(file.id);
-                                    } else {
-                                        setCurrentDoc(file);
-                                    }
-                                }}
-                                className={`w-full text-left p-2 rounded text-xs transition-all flex items-center gap-2 group ${
-                                    (currentTrack?.id === file.id && isPlaying) || (currentDoc?.id === file.id)
-                                    ? 'bg-mag-accent/20 border border-mag-accent/50 text-white' 
-                                    : 'hover:bg-mag-light/30 text-mag-text/80'
-                                }`}
-                            >
-                                {file.type === 'audio' ? <Music size={14} /> : <FileText size={14} />}
-                                <span className="truncate flex-1">{file.name}</span>
-                                {file.type === 'audio' && currentTrack?.id === file.id && isPlaying && (
-                                    <div className="w-1.5 h-1.5 rounded-full bg-mag-accent animate-pulse"></div>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            ))}
-        </div>
-
-        {/* Right: Content Viewer (Doc or Player Placeholder) */}
-        <div className="flex-1 bg-mag-panel/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
-            {currentDoc ? (
-                 <div className="flex flex-col h-full">
-                    <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20 sticky top-0 z-10 backdrop-blur-md">
-                        <div className="flex items-center">
-                            <FileText className="w-5 h-5 mr-2 text-mag-cyan" /> 
-                            <h3 className="text-lg font-serif text-mag-text truncate max-w-[300px]">{currentDoc.name}</h3>
-                        </div>
-                        <button onClick={() => setCurrentDoc(null)} className="text-xs hover:text-white text-mag-text/50">FECHAR</button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
-                         <MarkdownViewer content={currentDoc.content} />
-                    </div>
-                 </div>
-            ) : appState === AppState.PLAYER ? (
-                <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
-                    <button 
-                        onClick={() => setAppState(AppState.BROWSER)}
-                        className="absolute top-4 left-4 flex items-center text-xs text-mag-cyan hover:text-white md:hidden"
-                    >
-                        <ChevronLeft size={14} /> Arquivos
-                    </button>
-                    {renderPlayerControls()}
-                </div>
-            ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-mag-text/30 p-8 text-center">
-                    <FolderOpen size={64} className="mb-4 opacity-20" />
-                    <p className="font-serif text-lg">Selecione um arquivo para visualizar</p>
-                    <p className="text-xs mt-2 opacity-50">Áudios abrirão o player. Documentos abrirão aqui.</p>
-                </div>
-            )}
-        </div>
+            {renderPlayerControls()}
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-mag-text/30 p-8 text-center">
+            <FolderOpen size={64} className="mb-4 opacity-20" />
+            <p className="font-serif text-lg">Selecione um arquivo para visualizar</p>
+            <p className="text-xs mt-2 opacity-50">Áudios abrirão o player. Documentos abrirão aqui.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 
   // --- Main Render ---
 
   if (appState === AppState.ADMIN && currentUser?.role === 'admin') {
-      return (
-          <AdminPanel 
-            users={users} 
-            files={files} 
-            onAddUser={addUser} 
-            onUploadFile={addFile} 
-            onUpdatePermissions={updatePermissions}
-            onExit={() => setAppState(AppState.CAMPAIGN_SELECT)}
-          />
-      );
+    return (
+      <AdminPanel
+        users={users}
+        files={files}
+        onAddUser={addUser}
+        onUploadFile={addFile}
+        onUpdatePermissions={updatePermissions}
+        onExit={() => setAppState(AppState.CAMPAIGN_SELECT)}
+      />
+    );
   }
 
   return (
@@ -459,35 +502,35 @@ function App() {
 
       <div className="container mx-auto px-4 py-6 h-screen flex flex-col">
         {appState === AppState.LOGIN ? renderLogin() : (
-           <>
-              <header className="flex justify-between items-center mb-6 shrink-0 animate-in fade-in slide-in-from-top-4 duration-700">
-                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setAppState(AppState.CAMPAIGN_SELECT)}>
-                   <div className="w-3 h-10 bg-mag-accent rounded-sm shadow-[0_0_15px_rgba(236,29,37,0.5)]"></div>
-                   <div>
-                       <h1 className="text-2xl font-serif font-bold tracking-widest text-white leading-none">MAG</h1>
-                       <span className="text-mag-cyan text-xs tracking-[0.3em] uppercase block">Audio System</span>
-                   </div>
+          <>
+            <header className="flex justify-between items-center mb-6 shrink-0 animate-in fade-in slide-in-from-top-4 duration-700">
+              <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setAppState(AppState.CAMPAIGN_SELECT)}>
+                <div className="w-3 h-10 bg-mag-accent rounded-sm shadow-[0_0_15px_rgba(236,29,37,0.5)]"></div>
+                <div>
+                  <h1 className="text-2xl font-serif font-bold tracking-widest text-white leading-none">MAG</h1>
+                  <span className="text-mag-cyan text-xs tracking-[0.3em] uppercase block">Audio System</span>
                 </div>
-                <div className="flex items-center gap-4">
-                    <div className="text-right hidden md:block">
-                        <div className="text-xs text-mag-text/50 font-mono">USUÁRIO</div>
-                        <div className="text-sm font-bold text-white uppercase">{currentUser?.name}</div>
-                    </div>
-                    <button onClick={handleLogout} title="Sair" className="p-2 hover:bg-white/10 rounded-full text-mag-text/70 hover:text-white transition-colors">
-                        <LogOut size={20} />
-                    </button>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right hidden md:block">
+                  <div className="text-xs text-mag-text/50 font-mono">USUÁRIO</div>
+                  <div className="text-sm font-bold text-white uppercase">{currentUser?.name}</div>
                 </div>
-              </header>
+                <button onClick={handleLogout} title="Sair" className="p-2 hover:bg-white/10 rounded-full text-mag-text/70 hover:text-white transition-colors">
+                  <LogOut size={20} />
+                </button>
+              </div>
+            </header>
 
-              <main className="flex-1 min-h-0 flex flex-col relative">
-                 {appState === AppState.CAMPAIGN_SELECT && renderCampaignSelect()}
-                 {(appState === AppState.BROWSER || appState === AppState.PLAYER) && renderBrowser()}
-              </main>
+            <main className="flex-1 min-h-0 flex flex-col relative">
+              {appState === AppState.CAMPAIGN_SELECT && renderCampaignSelect()}
+              {(appState === AppState.BROWSER || appState === AppState.PLAYER) && renderBrowser()}
+            </main>
 
-              <footer className="mt-4 shrink-0 text-center text-mag-text/30 text-xs font-mono pb-2">
-                 IFCE MAGNO ARCHIVES &copy; {new Date().getFullYear()}
-              </footer>
-           </>
+            <footer className="mt-4 shrink-0 text-center text-mag-text/30 text-xs font-mono pb-2">
+              IFCE MAGNO ARCHIVES &copy; {new Date().getFullYear()}
+            </footer>
+          </>
         )}
       </div>
     </div>

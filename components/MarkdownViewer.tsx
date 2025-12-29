@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -7,6 +7,22 @@ interface MarkdownViewerProps {
 }
 
 export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content }) => {
+  const [resolved, setResolved] = useState<string>(content);
+
+  useEffect(() => {
+    const isUrl = /^https?:\/\//i.test(content);
+    if (!isUrl) {
+      setResolved(content);
+      return;
+    }
+    let cancelled = false;
+    fetch(content)
+      .then(r => r.text())
+      .then(txt => { if (!cancelled) setResolved(txt); })
+      .catch(() => { if (!cancelled) setResolved(''); });
+    return () => { cancelled = true; };
+  }, [content]);
+
   return (
     <div className="
       prose prose-invert max-w-none 
@@ -23,20 +39,20 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content }) => {
       prose-th:text-mag-cyan prose-th:uppercase prose-th:text-xs prose-th:tracking-wider prose-th:border-b prose-th:border-white/20 prose-th:p-3
       prose-td:border-b prose-td:border-white/5 prose-td:p-3 prose-td:text-sm
     ">
-      <ReactMarkdown 
+      <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          table: ({node, ...props}) => (
+          table: ({ node, ...props }) => (
             <div className="overflow-x-auto my-6 rounded-lg border border-white/10 bg-black/20 custom-scrollbar">
               <table className="w-full text-left border-collapse" {...props} />
             </div>
           ),
-          hr: ({node, ...props}) => (
+          hr: ({ node, ...props }) => (
             <hr className="border-t border-white/10 my-8" {...props} />
           )
         }}
       >
-        {content}
+        {resolved}
       </ReactMarkdown>
     </div>
   );
