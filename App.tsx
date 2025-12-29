@@ -566,14 +566,14 @@ function App() {
       <div className="flex-1 bg-mag-panel/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
         {currentDoc ? (
           <div className="flex flex-col h-full">
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20 sticky top-0 z-10 backdrop-blur-md">
-              <div className="flex items-center">
-                <FileText className="w-5 h-5 mr-2 text-mag-cyan" />
-                <h3 className="text-lg font-serif text-mag-text truncate max-w-[300px]">{currentDoc.name}</h3>
+            <div className="p-3 md:p-4 border-b border-white/10 flex items-center justify-between bg-black/20 sticky top-0 z-10 backdrop-blur-md">
+              <div className="flex items-center min-w-0 flex-1">
+                <FileText className="w-4 h-4 md:w-5 md:h-5 mr-2 text-mag-cyan shrink-0" />
+                <h3 className="text-base md:text-lg font-serif text-mag-text truncate">{currentDoc.name}</h3>
               </div>
-              <button onClick={() => setCurrentDoc(null)} className="text-xs hover:text-white text-mag-text/50">FECHAR</button>
+              <button onClick={() => setCurrentDoc(null)} className="text-xs hover:text-white text-mag-text/50 ml-2 shrink-0">FECHAR</button>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 bg-gradient-to-br from-mag-panel/50 to-black/40">
               <MarkdownViewer content={currentDoc.content} />
             </div>
 
