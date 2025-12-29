@@ -1,7 +1,5 @@
 import { put } from "@vercel/blob";
 
-export const config = { runtime: "edge" };
-
 function slugify(input: string) {
   return input
     .toLowerCase()

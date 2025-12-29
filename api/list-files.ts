@@ -1,7 +1,5 @@
 import { list } from "@vercel/blob";
 
-export const config = { runtime: "edge" };
-
 interface FileRecord {
   id: string;
   name: string;
