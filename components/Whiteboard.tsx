@@ -30,6 +30,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
   onSave,
   onExit
 }) => {
+  // Flag de debug para logs verbosos
+  const DEBUG_SYNC = true;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentTool, setCurrentTool] = useState<Tool>('select');
@@ -52,6 +55,7 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
   const [resizeHandle, setResizeHandle] = useState<string | null>(null);
   const [otherUsers, setOtherUsers] = useState<UserPresence[]>([]);
   const [myColor, setMyColor] = useState('#FF6B6B');
+  const [isConnected, setIsConnected] = useState(false); // Status da conexão SSE
 
   const colors = ['#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFFFFF', '#FFA500', '#800080'];
 
@@ -70,15 +74,20 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSaving(true);
+        if (DEBUG_SYNC) {
+          console.log('[Save] Salvando', elementsToSave.length, 'elementos');
+        }
         await saveWhiteboard({
           campaign: campaignName,
           elements: elementsToSave,
         });
         lastSaveRef.current = Date.now();
         pendingSaveRef.current = false;
-        console.log('[Whiteboard] Auto-save concluído com', elementsToSave.length, 'elementos');
+        if (DEBUG_SYNC) {
+          console.log('[Save] Auto-save concluído com sucesso');
+        }
       } catch (err) {
-        console.error('[Whiteboard] Erro no auto-save:', err);
+        console.error('[Save] Erro no auto-save:', err);
         pendingSaveRef.current = false;
       } finally {
         setIsSaving(false);
@@ -103,74 +112,137 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
     loadData();
   }, [campaignName]);
 
-  // Sincronização em tempo real (1000ms polling) - mais espaçado para estabilidade
+  // Sincronização em tempo real usando Server-Sent Events (SSE)
   useEffect(() => {
-    const syncInterval = setInterval(async () => {
-      // Não sincronizar se estiver desenhando ou salvando
+    if (DEBUG_SYNC) {
+      console.log('[SSE] Conectando ao stream para campanha:', campaignName);
+    }
+
+    const eventSource = new EventSource(`/api/whiteboard-stream?campaign=${encodeURIComponent(campaignName)}`);
+
+    eventSource.onopen = () => {
+      setIsConnected(true);
+      if (DEBUG_SYNC) {
+        console.log('[SSE] Conexão estabelecida');
+      }
+    };
+
+    eventSource.onmessage = (event) => {
+      // Não processar se estiver desenhando ou salvando
       if (isDrawing || pendingSaveRef.current) {
         return;
       }
 
       try {
-        const data = await loadWhiteboard(campaignName);
-        if (data && data.elements) {
+        const serverData = JSON.parse(event.data);
+
+        if (serverData.elements) {
           setElements(currentElements => {
-            // Se não há elementos locais, simplesmente usa os do servidor
-            if (currentElements.length === 0) {
-              return data.elements;
+            if (DEBUG_SYNC) {
+              console.log('[SSE] Recebendo update');
+              console.log('[SSE] Elementos locais:', currentElements.length);
+              console.log('[SSE] Elementos do servidor:', serverData.elements.length);
             }
 
-            // Criar mapa de elementos locais por ID
-            const localMap = new Map(currentElements.map(e => [e.id, e]));
-            const serverMap = new Map(data.elements.map(e => [e.id, e]));
+            // Se não há elementos locais, simplesmente usa os do servidor
+            if (currentElements.length === 0) {
+              if (DEBUG_SYNC) {
+                console.log('[SSE] Sem elementos locais, usando', serverData.elements.length, 'do servidor');
+              }
+              return serverData.elements;
+            }
 
-            // Começar com elementos do servidor
-            const mergedElements = [...data.elements];
+            // Criar mapa de elementos por ID
+            const localMap = new Map(currentElements.map((e: WhiteboardElement) => [e.id, e]));
+            const serverMap = new Map(serverData.elements.map((e: WhiteboardElement) => [e.id, e]));
 
-            // Adicionar elementos locais que são mais recentes ou não existem no servidor
+            // Começar com elementos do servidor como base
+            const mergedElements = [...serverData.elements];
+            let addedLocal = 0;
+            let updatedFromLocal = 0;
+
+            // Processar elementos locais
             currentElements.forEach(localElement => {
-              const serverElement = serverMap.get(localElement.id);
+              const serverElement = serverMap.get(localElement.id) as WhiteboardElement | undefined;
 
               if (!serverElement) {
                 // Elemento existe apenas localmente
                 const age = Date.now() - localElement.timestamp;
-                // Manter elementos locais recentes (últimos 5 segundos)
-                if (age < 5000) {
+                // Reduzir janela de 5s para 2s para melhor sincronização
+                if (age < 2000) {
                   mergedElements.push(localElement);
+                  addedLocal++;
+                  if (DEBUG_SYNC) {
+                    console.log('[SSE] Mantendo elemento local recente (idade:', age, 'ms):', localElement.id);
+                  }
+                } else if (DEBUG_SYNC) {
+                  console.log('[SSE] Descartando elemento local antigo (idade:', age, 'ms):', localElement.id);
                 }
               } else if (localElement.timestamp > serverElement.timestamp) {
-                // Elemento local é mais recente
-                const index = mergedElements.findIndex(e => e.id === localElement.id);
+                // Elemento local é mais recente que o do servidor
+                const index = mergedElements.findIndex((e: WhiteboardElement) => e.id === localElement.id);
                 if (index >= 0) {
                   mergedElements[index] = localElement;
+                  updatedFromLocal++;
+                  if (DEBUG_SYNC) {
+                    console.log('[SSE] Elemento local mais recente:', localElement.id);
+                  }
                 }
               }
             });
 
-            // Ordenar por timestamp
+            // Ordenar por timestamp para manter ordem consistente
             mergedElements.sort((a, b) => a.timestamp - b.timestamp);
+
+            if (DEBUG_SYNC) {
+              console.log('[SSE] Merge completo - Total:', mergedElements.length, '| Adicionados locais:', addedLocal, '| Atualizados de local:', updatedFromLocal);
+            }
 
             // Evitar re-renderização desnecessária se os dados são idênticos
             if (JSON.stringify(currentElements) === JSON.stringify(mergedElements)) {
+              if (DEBUG_SYNC) {
+                console.log('[SSE] Dados idênticos, sem mudanças');
+              }
               return currentElements;
             }
 
+            if (DEBUG_SYNC) {
+              console.log('[SSE] Atualizando state com', mergedElements.length, 'elementos');
+            }
             return mergedElements;
           });
         }
       } catch (err) {
-        console.error('Erro ao sincronizar whiteboard:', err);
+        console.error('[SSE] Erro ao processar mensagem:', err);
       }
-    }, 1000); // Polling a cada 1 segundo
+    };
 
-    return () => clearInterval(syncInterval);
+    eventSource.onerror = (err) => {
+      setIsConnected(false);
+      console.error('[SSE] Erro na conexão:', err);
+      // EventSource tenta reconectar automaticamente
+      if (DEBUG_SYNC) {
+        console.log('[SSE] Tentando reconectar...');
+      }
+    };
+
+    // Cleanup ao desmontar componente
+    return () => {
+      setIsConnected(false);
+      if (DEBUG_SYNC) {
+        console.log('[SSE] Fechando conexão');
+      }
+      eventSource.close();
+    };
   }, [campaignName, isDrawing]);
 
   // Auto-save periódico (a cada 3 segundos se houver mudanças pendentes)
   useEffect(() => {
     const autoSaveInterval = setInterval(() => {
       if (pendingSaveRef.current && elements.length > 0 && !isDrawing && !isSaving) {
-        console.log('[Whiteboard] Salvamento periódico forçado');
+        if (DEBUG_SYNC) {
+          console.log('[AutoSave] Salvamento periódico forçado com', elements.length, 'elementos');
+        }
         debouncedSave(elements);
       }
     }, 3000);
@@ -599,6 +671,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
       // Save after moving - usar setTimeout para garantir que state foi atualizado
       setTimeout(() => {
         setElements(currentElements => {
+          if (DEBUG_SYNC) {
+            console.log('[Action] Elemento movido, salvando', currentElements.length, 'elementos');
+          }
           debouncedSave(currentElements);
           return currentElements;
         });
@@ -621,6 +696,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
         const newElements = [...elements, newElement];
         setElements(newElements);
         setCurrentPath([]);
+        if (DEBUG_SYNC) {
+          console.log('[Action] Path criado (', currentTool, '), salvando', newElements.length, 'elementos');
+        }
         debouncedSave(newElements);
       }
     } else if (currentTool === 'rectangle' && startPos) {
@@ -644,6 +722,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
       };
       const newElements = [...elements, newElement];
       setElements(newElements);
+      if (DEBUG_SYNC) {
+        console.log('[Action] Retângulo criado, salvando', newElements.length, 'elementos');
+      }
       debouncedSave(newElements);
     } else if (currentTool === 'circle' && startPos) {
       const radius = Math.sqrt(
@@ -666,6 +747,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
       };
       const newElements = [...elements, newElement];
       setElements(newElements);
+      if (DEBUG_SYNC) {
+        console.log('[Action] Círculo criado, salvando', newElements.length, 'elementos');
+      }
       debouncedSave(newElements);
     }
   };
@@ -688,6 +772,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
       };
       const newElements = [...elements, newElement];
       setElements(newElements);
+      if (DEBUG_SYNC) {
+        console.log('[Action] Texto adicionado, salvando', newElements.length, 'elementos');
+      }
       debouncedSave(newElements);
     }
     setShowTextInput(false);
@@ -713,6 +800,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
     const newElements = [...elements, newElement];
     setElements(newElements);
     setShowMediaPicker(false);
+    if (DEBUG_SYNC) {
+      console.log('[Action] Mídia adicionada, salvando', newElements.length, 'elementos');
+    }
     debouncedSave(newElements);
   };
 
@@ -721,6 +811,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
       const newElements = elements.filter(e => e.id !== selectedElementId);
       setElements(newElements);
       setSelectedElementId(null);
+      if (DEBUG_SYNC) {
+        console.log('[Action] Elemento deletado, salvando', newElements.length, 'elementos');
+      }
       debouncedSave(newElements);
     }
   };
@@ -729,6 +822,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
     setElements([]);
     setSelectedElementId(null);
     setShowClearConfirm(false);
+    if (DEBUG_SYNC) {
+      console.log('[Action] Whiteboard limpo, salvando 0 elementos');
+    }
     debouncedSave([]);
   };
 
@@ -773,8 +869,16 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
             <X size={20} />
           </button>
           <h2 className="text-lg font-semibold">{campaignName} - Quadro Branco</h2>
-          {isSaving && <span className="text-xs text-yellow-400">Salvando...</span>}
-          {saveMessage && <span className="text-xs text-green-400">{saveMessage}</span>}
+
+          {/* Connection status indicator */}
+          <div className="flex items-center gap-2">
+            <div
+              className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+              title={isConnected ? 'Conectado (tempo real)' : 'Desconectado'}
+            />
+            {isSaving && <span className="text-xs text-yellow-400">Salvando...</span>}
+            {saveMessage && <span className="text-xs text-green-400">{saveMessage}</span>}
+          </div>
         </div>
 
         {/* User presence indicators */}
