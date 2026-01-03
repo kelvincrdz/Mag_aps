@@ -4,5 +4,33 @@
             "source": "/api/(.*)",
             "destination": "/api/$1"
         }
+    ],
+    "functions": {
+        "api/whiteboard-stream.ts": {
+            "maxDuration": 30
+        }
+    },
+    "headers": [
+        {
+            "source": "/api/whiteboard-stream",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "no-cache, no-transform"
+                },
+                {
+                    "key": "Connection",
+                    "value": "keep-alive"
+                },
+                {
+                    "key": "Content-Type",
+                    "value": "text/event-stream"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                }
+            ]
+        }
     ]
 }
