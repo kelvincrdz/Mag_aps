@@ -710,10 +710,6 @@ function App() {
     return (
       <Whiteboard
         campaign={selectedCampaign}
-        currentUser={currentUser}
-        availableFiles={userFiles}
-        onSave={handleSaveWhiteboard}
-        onExit={exitWhiteboard}
       />
     );
   }
