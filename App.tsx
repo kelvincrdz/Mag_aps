@@ -709,7 +709,7 @@ function App() {
   if (appState === AppState.WHITEBOARD && selectedCampaign && currentUser) {
     return (
       <Whiteboard
-        campaignName={selectedCampaign}
+        campaign={selectedCampaign}
         currentUser={currentUser}
         availableFiles={userFiles}
         onSave={handleSaveWhiteboard}
