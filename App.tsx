@@ -13,13 +13,15 @@ import {
   ChevronRight,
   Folder,
   Settings,
-  Video
+  Video,
+  PenTool
 } from 'lucide-react';
 import { Cassette } from './components/Cassette';
 import { MarkdownViewer } from './components/MarkdownViewer';
 import { AdminPanel } from './components/AdminPanel';
-import { AppState, GameFile, User, INITIAL_USERS } from './types';
-import { uploadViaApi, saveFileMetadata, listAllFiles, saveUsers, listUsers, deleteCampaignFiles } from './services/magService';
+import { Whiteboard } from './components/Whiteboard';
+import { AppState, GameFile, User, INITIAL_USERS, WhiteboardData } from './types';
+import { uploadViaApi, saveFileMetadata, listAllFiles, saveUsers, listUsers, deleteCampaignFiles, saveWhiteboard, loadWhiteboard } from './services/magService';
 
 function App() {
   // --- Global State ---
@@ -45,6 +47,9 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // --- Whiteboard State ---
+  const [whiteboardData, setWhiteboardData] = useState<WhiteboardData | null>(null);
+
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -55,6 +60,8 @@ function App() {
   const userFiles = files.filter(f => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
+    // '*' significa todos os usuários podem ver
+    if (f.allowedUserIds.includes('*')) return true;
     return f.allowedUserIds.includes(currentUser.id);
   });
 
@@ -246,6 +253,45 @@ function App() {
       console.error('Falha ao deletar campanha', err);
       alert('Erro ao deletar campanha');
     }
+  };
+
+  // --- Whiteboard Handlers ---
+
+  const openWhiteboard = async () => {
+    if (!selectedCampaign) return;
+
+    setAppState(AppState.WHITEBOARD);
+
+    // Try to load existing whiteboard data
+    try {
+      const data = await loadWhiteboard(selectedCampaign);
+      setWhiteboardData(data);
+    } catch (err) {
+      console.error('Falha ao carregar quadro branco', err);
+      setWhiteboardData(null);
+    }
+  };
+
+  const handleSaveWhiteboard = async (imageData: string) => {
+    if (!selectedCampaign) return;
+
+    const data: WhiteboardData = {
+      campaign: selectedCampaign,
+      elements: whiteboardData?.elements || [],
+    };
+
+    try {
+      await saveWhiteboard(data);
+      setWhiteboardData(data);
+      alert('Quadro branco salvo com sucesso!');
+    } catch (err) {
+      console.error('Falha ao salvar quadro branco', err);
+      alert('Erro ao salvar quadro branco');
+    }
+  };
+
+  const exitWhiteboard = () => {
+    setAppState(AppState.PLAYER);
   };
 
   // --- Playback Handlers ---
@@ -660,6 +706,18 @@ function App() {
     );
   }
 
+  if (appState === AppState.WHITEBOARD && selectedCampaign && currentUser) {
+    return (
+      <Whiteboard
+        campaignName={selectedCampaign}
+        currentUser={currentUser}
+        availableFiles={userFiles}
+        onSave={handleSaveWhiteboard}
+        onExit={exitWhiteboard}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen text-mag-text font-sans selection:bg-mag-accent selection:text-white relative overflow-hidden bg-mag-dark">
       {/* Background Ambience */}
@@ -681,6 +739,15 @@ function App() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
+                {selectedCampaign && (appState === AppState.PLAYER || appState === AppState.BROWSER) && (
+                  <button
+                    onClick={openWhiteboard}
+                    title="Quadro Branco"
+                    className="p-2 hover:bg-white/10 rounded-full text-mag-text/70 hover:text-white transition-colors"
+                  >
+                    <PenTool size={20} />
+                  </button>
+                )}
                 <div className="text-right hidden md:block">
                   <div className="text-xs text-mag-text/50 font-mono">USUÁRIO</div>
                   <div className="text-sm font-bold text-white uppercase">{currentUser?.name}</div>

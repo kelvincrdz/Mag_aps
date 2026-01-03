@@ -42,6 +42,42 @@ export enum AppState {
   PLAYER,
   BROWSER,
   ADMIN,
+  WHITEBOARD,
+}
+
+export interface WhiteboardElement {
+  id: string;
+  type: "path" | "text" | "shape" | "image" | "video" | "pdf";
+  data: any;
+  color: string;
+  timestamp: number;
+  x?: number; // Posição X do objeto
+  y?: number; // Posição Y do objeto
+  width?: number; // Largura do objeto
+  height?: number; // Altura do objeto
+  rotation?: number; // Rotação em graus
+  lockedBy?: string; // ID do usuário editando
+  lockedAt?: number; // Timestamp do lock
+}
+
+export interface WhiteboardData {
+  campaign: string;
+  elements: WhiteboardElement[];
+}
+
+export interface UserPresence {
+  userId: string;
+  userName: string;
+  cursorX: number;
+  cursorY: number;
+  editingElementId?: string;
+  lastSeen: number;
+  color: string; // Cor única para cada usuário
+}
+
+export interface WhiteboardPresence {
+  campaign: string;
+  users: UserPresence[];
 }
 
 // Default initial users
